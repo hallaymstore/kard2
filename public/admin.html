@@ -40,7 +40,8 @@
     <main>
       <section id="dashboard" class="view active">
         <div class="grid" id="statsGrid"></div>
-        <div class="panel"><h2>Tezkor amallar</h2><div class="actions" style="justify-content:flex-start"><button class="btn" onclick="showView('orders');loadOrders()">Yangi buyurtmalar</button><button class="ghost" onclick="showView('products');loadProducts()">Mahsulot qo‘shish</button><button class="ghost" onclick="showView('settings');loadSettings()">Karta sozlash</button></div></div>
+        <div class="panel"><h2>Tezkor amallar</h2><div class="actions" style="justify-content:flex-start"><button class="btn" onclick="showView('orders');loadOrders()">Yangi buyurtmalar</button><button class="ghost" onclick="showView('products');loadProducts()">Mahsulot qo‘shish</button><button class="ghost" onclick="showView('settings');loadSettings()">Karta sozlash</button><button class="ghost" onclick="loadBotStatus()">Botni tekshirish</button><button class="ghost" onclick="setupWebhook()">Webhook sozlash</button></div></div>
+        <div class="panel"><div class="split"><div><h2>🤖 Telegram bot holati</h2><div class="muted">Webhook, Mini App URL va bot ulanishini shu yerdan tekshiring.</div></div><div class="actions"><button class="ghost" onclick="loadBotStatus()">Yangilash</button><button class="btn" onclick="setupWebhook()">Webhook setup</button></div></div><div class="list" id="botStatus"><div class="muted">Bot statusini ko‘rish uchun “Yangilash” bosing.</div></div></div>
       </section>
 
       <section id="orders" class="view">
@@ -149,8 +150,21 @@
 
     async function boot(){ if(!token) return; showAuthed(); await loadSettings(false); await loadDashboard(); }
     async function loadDashboard(){
-      try{ const data=await adminApi('/api/admin/dashboard'); const s=data.stats; $('statsGrid').innerHTML = [ ['Jami buyurtma',s.ordersTotal,'🧾'], ['Kutilmoqda',s.ordersPending,'⏳'], ['Band kutmoqda',s.reservationsPending,'🪑'], ['Mahsulot',s.productsTotal,'🥙'], ['Tasdiqlangan tushum',money(s.revenue),'💰'] ].map(x=>`<div class="stat"><span class="muted">${x[2]} ${x[0]}</span><b>${x[1]}</b></div>`).join(''); }
+      try{ const data=await adminApi('/api/admin/dashboard'); const s=data.stats; $('statsGrid').innerHTML = [ ['Jami buyurtma',s.ordersTotal,'🧾'], ['Kutilmoqda',s.ordersPending,'⏳'], ['Band kutmoqda',s.reservationsPending,'🪑'], ['Mahsulot',s.productsTotal,'🥙'], ['Tasdiqlangan tushum',money(s.revenue),'💰'] ].map(x=>`<div class="stat"><span class="muted">${x[2]} ${x[0]}</span><b>${x[1]}</b></div>`).join(''); loadBotStatus(false); }
       catch(err){ toast(err.message); if(String(err.message).toLowerCase().includes('token')) logout(); }
+    }
+    async function loadBotStatus(showToast=true){
+      try{
+        const data = await adminApi('/api/admin/bot/status');
+        const b = data.bot || {}; const w = b.webhookInfo || {}; const r = w.result || {};
+        const hasUrl = !!b.publicUrl && !!b.webAppUrl;
+        $('botStatus').innerHTML = `<div class="card"><div class="meta"><span class="pill ${b.hasToken?'ok':'bad'}">BOT_TOKEN: ${b.hasToken?'bor':'yo‘q'}</span><span class="pill ${hasUrl?'ok':'bad'}">HTTPS URL: ${hasUrl?'bor':'yo‘q'}</span><span class="pill ${r.url?'ok':'bad'}">Webhook: ${r.url?'sozlangan':'yo‘q'}</span><span class="pill ${b.polling?'ok':''}">Polling: ${b.polling?'ON':'OFF'}</span></div><div class="muted"><b>PUBLIC_URL:</b> ${escapeHtml(b.publicUrl || 'sozlanmagan')}</div><div class="muted"><b>WEBAPP_URL:</b> ${escapeHtml(b.webAppUrl || 'sozlanmagan')}</div><div class="muted"><b>Webhook URL:</b> ${escapeHtml(r.url || 'yo‘q')}</div>${r.last_error_message?`<div class="pill bad">Telegram xato: ${escapeHtml(r.last_error_message)}</div>`:''}</div>`;
+        if(showToast) toast('Bot holati yuklandi');
+      }catch(err){ if($('botStatus')) $('botStatus').innerHTML = `<div class="card"><span class="pill bad">${escapeHtml(err.message)}</span></div>`; if(showToast) toast(err.message); }
+    }
+    async function setupWebhook(){
+      try{ const data = await adminApi('/api/admin/bot/setup-webhook',{method:'POST',body:JSON.stringify({})}); toast(data.result?.description || (data.success?'Webhook sozlandi':'Webhook sozlanmadi')); await loadBotStatus(false); }
+      catch(err){ toast(err.message); }
     }
     async function loadOrders(){
       try{ const data=await adminApi('/api/admin/orders'); $('ordersList').innerHTML = data.orders.length ? data.orders.map(o=>`

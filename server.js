@@ -3,6 +3,7 @@
 require('dotenv').config();
 
 const path = require('path');
+const https = require('https');
 const crypto = require('crypto');
 const express = require('express');
 const mongoose = require('mongoose');
@@ -19,8 +20,26 @@ const BOT_TOKEN = process.env.BOT_TOKEN || '';
 const APP_SECRET = process.env.APP_SECRET || crypto.randomBytes(32).toString('hex');
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin12345';
 const REQUIRE_TELEGRAM_AUTH = String(process.env.REQUIRE_TELEGRAM_AUTH || 'false').toLowerCase() === 'true';
-const PUBLIC_URL = (process.env.PUBLIC_URL || '').replace(/\/$/, '');
-const WEBAPP_URL = (process.env.WEBAPP_URL || PUBLIC_URL || '').replace(/\/$/, '');
+function cleanPublicUrl(value) {
+  const raw = String(value || '').trim().replace(/\/$/, '');
+  if (!raw || raw.includes('your-domain.com') || raw.includes('localhost') || raw.includes('127.0.0.1')) return '';
+  if (!/^https:\/\//i.test(raw)) return '';
+  return raw;
+}
+
+function detectPublicUrl() {
+  if (process.env.RENDER_EXTERNAL_URL) return process.env.RENDER_EXTERNAL_URL;
+  if (process.env.RAILWAY_PUBLIC_DOMAIN) return `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`;
+  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
+  if (process.env.FLY_APP_NAME) return `https://${process.env.FLY_APP_NAME}.fly.dev`;
+  return '';
+}
+
+const PUBLIC_URL = cleanPublicUrl(process.env.PUBLIC_URL) || cleanPublicUrl(detectPublicUrl());
+const WEBAPP_URL = cleanPublicUrl(process.env.WEBAPP_URL) || PUBLIC_URL;
+const AUTO_SET_WEBHOOK = String(process.env.AUTO_SET_WEBHOOK || 'false').toLowerCase() === 'true';
+const TELEGRAM_POLLING = String(process.env.TELEGRAM_POLLING || 'false').toLowerCase() === 'true';
+const TELEGRAM_WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET || '';
 const UPLOAD_MAX_MB = Number(process.env.UPLOAD_MAX_MB || 6);
 const ADMIN_TOKEN_TTL_MS = 1000 * 60 * 60 * 24 * 2;
 const INIT_DATA_MAX_AGE_SECONDS = Number(process.env.INIT_DATA_MAX_AGE_SECONDS || 60 * 60 * 24);
@@ -390,16 +409,143 @@ async function seedDefaults() {
   }
 }
 
-async function telegramApi(method, payload) {
-  if (!BOT_TOKEN) return null;
-  const response = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/${method}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
+function postJson(url, payload, timeoutMs = 15000) {
+  return new Promise((resolve, reject) => {
+    const body = JSON.stringify(payload || {});
+    const req = https.request(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(body),
+      },
+      timeout: timeoutMs,
+    }, (res) => {
+      let data = '';
+      res.setEncoding('utf8');
+      res.on('data', (chunk) => { data += chunk; });
+      res.on('end', () => {
+        const parsed = safeJsonParse(data, null);
+        if (res.statusCode >= 200 && res.statusCode < 300) return resolve(parsed);
+        const err = new Error(parsed?.description || `HTTP ${res.statusCode}`);
+        err.response = parsed;
+        reject(err);
+      });
+    });
+    req.on('timeout', () => req.destroy(new Error('Telegram API timeout.')));
+    req.on('error', reject);
+    req.write(body);
+    req.end();
   });
-  const data = await response.json().catch(() => null);
-  if (!response.ok) console.error('Telegram API error:', method, data);
-  return data;
+}
+
+async function telegramApi(method, payload = {}) {
+  if (!BOT_TOKEN) return { ok: false, description: 'BOT_TOKEN sozlanmagan.' };
+  try {
+    const data = await postJson(`https://api.telegram.org/bot${BOT_TOKEN}/${method}`, payload);
+    if (!data?.ok) console.error('Telegram API error:', method, data);
+    return data;
+  } catch (error) {
+    console.error('Telegram API request failed:', method, error.message, error.response || '');
+    return { ok: false, description: error.message, error: error.response || null };
+  }
+}
+
+async function answerStart(chatId) {
+  const settings = await getSettingsDoc();
+  const buttons = [];
+  if (WEBAPP_URL) buttons.push([{ text: '🍽 Mini Appni ochish', web_app: { url: WEBAPP_URL } }]);
+  buttons.push([{ text: '📞 Telefon', callback_data: 'phone' }]);
+
+  const text = WEBAPP_URL
+    ? `Assalomu alaykum! ${settings.brandName} mini ilovasiga xush kelibsiz. Menyudan buyurtma bering yoki joy band qiling.`
+    : `Assalomu alaykum! ${settings.brandName} bot ishga tushdi, lekin Mini App URL hali sozlanmagan. Admin paneldan yoki .env ichida PUBLIC_URL / WEBAPP_URL ni HTTPS domen qilib kiriting.`;
+
+  return telegramApi('sendMessage', {
+    chat_id: chatId,
+    text,
+    reply_markup: { inline_keyboard: buttons },
+  });
+}
+
+async function handleTelegramUpdate(update) {
+  const message = update?.message || update?.edited_message;
+  const callback = update?.callback_query;
+
+  if (callback?.id) {
+    if (callback.data === 'phone') {
+      const settings = await getSettingsDoc();
+      await telegramApi('answerCallbackQuery', {
+        callback_query_id: callback.id,
+        text: settings.restaurantPhone || 'Telefon raqam sozlanmagan',
+        show_alert: true,
+      });
+      return;
+    }
+    await telegramApi('answerCallbackQuery', { callback_query_id: callback.id });
+    return;
+  }
+
+  const chatId = message?.chat?.id;
+  const text = String(message?.text || '').trim();
+  if (!chatId) return;
+
+  if (text.startsWith('/start')) {
+    await answerStart(chatId);
+    return;
+  }
+
+  if (text.startsWith('/id') || text.startsWith('/chatid')) {
+    await telegramApi('sendMessage', {
+      chat_id: chatId,
+      text: `Chat ID: ${chatId}\nBu ID ni ADMIN_TELEGRAM_CHAT_ID ga qo‘yishingiz mumkin.`,
+    });
+    return;
+  }
+
+  await telegramApi('sendMessage', {
+    chat_id: chatId,
+    text: 'Buyurtma berish yoki joy band qilish uchun Mini Appni oching 👇',
+    reply_markup: WEBAPP_URL ? { inline_keyboard: [[{ text: '🍽 Mini Appni ochish', web_app: { url: WEBAPP_URL } }]] } : undefined,
+  });
+}
+
+async function setupTelegramWebhook() {
+  if (!BOT_TOKEN) return { ok: false, description: 'BOT_TOKEN sozlanmagan.' };
+  if (!PUBLIC_URL) return { ok: false, description: 'PUBLIC_URL / WEBAPP_URL uchun real HTTPS domen kerak.' };
+  const url = `${PUBLIC_URL}/telegram/webhook`;
+  const payload = {
+    url,
+    allowed_updates: ['message', 'edited_message', 'callback_query'],
+    drop_pending_updates: false,
+  };
+  if (TELEGRAM_WEBHOOK_SECRET) payload.secret_token = TELEGRAM_WEBHOOK_SECRET;
+  return telegramApi('setWebhook', payload);
+}
+
+let pollingStarted = false;
+let pollingOffset = 0;
+async function startTelegramPolling() {
+  if (pollingStarted || !BOT_TOKEN) return;
+  pollingStarted = true;
+  console.log('Telegram polling started. Webhook mode is not used while TELEGRAM_POLLING=true.');
+  while (pollingStarted) {
+    try {
+      const data = await telegramApi('getUpdates', {
+        offset: pollingOffset,
+        timeout: 25,
+        allowed_updates: ['message', 'edited_message', 'callback_query'],
+      });
+      if (Array.isArray(data?.result)) {
+        for (const update of data.result) {
+          pollingOffset = Math.max(pollingOffset, update.update_id + 1);
+          await handleTelegramUpdate(update);
+        }
+      }
+    } catch (error) {
+      console.error('Polling xatosi:', error.message);
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+    }
+  }
 }
 
 async function notifyAdmin(text, photoUrl) {
@@ -422,6 +568,16 @@ async function notifyAdmin(text, photoUrl) {
       disable_web_page_preview: true,
     });
   }
+}
+
+async function notifyCustomer(chatId, text) {
+  if (!chatId || !BOT_TOKEN || String(chatId).startsWith('demo')) return;
+  await telegramApi('sendMessage', {
+    chat_id: chatId,
+    text,
+    parse_mode: 'HTML',
+    reply_markup: WEBAPP_URL ? { inline_keyboard: [[{ text: '📦 Statusni ko‘rish', web_app: { url: WEBAPP_URL } }]] } : undefined,
+  });
 }
 
 function userFullName(user, fallback = '') {
@@ -478,6 +634,10 @@ app.post('/api/orders', upload.single('screenshot'), telegramAuth, asyncHandler(
   if (!req.file) {
     return res.status(400).json({ success: false, message: 'To‘lov screenshotini yuklang.' });
   }
+  const phone = String(req.body.phone || '').trim();
+  if (phone.length < 7) {
+    return res.status(400).json({ success: false, message: 'Telefon raqamni to‘liq kiriting.' });
+  }
 
   const ids = itemsPayload.map((item) => ensureObjectId(item.productId, 'Mahsulot ID'));
   const products = await Product.find({ _id: { $in: ids }, available: true });
@@ -519,7 +679,7 @@ app.post('/api/orders', upload.single('screenshot'), telegramAuth, asyncHandler(
     userTelegramId: String(req.tgUser.id),
     userUsername: req.tgUser.username || '',
     userFullName: userFullName(req.tgUser, req.body.fullName),
-    phone: String(req.body.phone || '').trim(),
+    phone,
     type,
     address: String(req.body.address || '').trim(),
     deliveryServiceId,
@@ -558,8 +718,15 @@ app.post('/api/reservations', upload.single('screenshot'), telegramAuth, asyncHa
   const guests = Math.max(settings.reservationMinGuests || 1, Math.min(settings.reservationMaxGuests || 20, Number(req.body.guests || 1)));
   const tableArea = String(req.body.tableArea || 'Zal').trim();
 
+  const phone = String(req.body.phone || '').trim();
+  if (phone.length < 7) {
+    return res.status(400).json({ success: false, message: 'Telefon raqamni to‘liq kiriting.' });
+  }
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}$/.test(startTime) || !/^\d{2}:\d{2}$/.test(endTime)) {
     return res.status(400).json({ success: false, message: 'Sana yoki vaqt formati noto‘g‘ri.' });
+  }
+  if (startTime >= endTime) {
+    return res.status(400).json({ success: false, message: 'Boshlanish vaqti tugash vaqtidan oldin bo‘lishi kerak.' });
   }
 
   const overlap = await Reservation.findOne({
@@ -578,7 +745,7 @@ app.post('/api/reservations', upload.single('screenshot'), telegramAuth, asyncHa
     userTelegramId: String(req.tgUser.id),
     userUsername: req.tgUser.username || '',
     userFullName: userFullName(req.tgUser, req.body.fullName),
-    phone: String(req.body.phone || '').trim(),
+    phone,
     date,
     startTime,
     endTime,
@@ -646,7 +813,7 @@ app.patch('/api/admin/orders/:id', verifyAdminToken, asyncHandler(async (req, re
   for (const key of allowed) if (req.body[key] !== undefined) update[key] = req.body[key];
   const order = await Order.findByIdAndUpdate(req.params.id, update, { new: true, runValidators: true });
   if (!order) return res.status(404).json({ success: false, message: 'Buyurtma topilmadi.' });
-  await notifyAdmin(`✅ <b>Buyurtma yangilandi</b>\n#${order.orderNo}\nTo‘lov: ${order.paymentStatus}\nStatus: ${order.orderStatus}`);
+  await notifyCustomer(order.userTelegramId, `📦 <b>Buyurtma statusi yangilandi</b>\n#${order.orderNo}\nTo‘lov: ${order.paymentStatus}\nStatus: ${order.orderStatus}`);
   res.json({ success: true, order });
 }));
 
@@ -664,7 +831,7 @@ app.patch('/api/admin/reservations/:id', verifyAdminToken, asyncHandler(async (r
   for (const key of allowed) if (req.body[key] !== undefined) update[key] = req.body[key];
   const reservation = await Reservation.findByIdAndUpdate(req.params.id, update, { new: true, runValidators: true });
   if (!reservation) return res.status(404).json({ success: false, message: 'Band qilish topilmadi.' });
-  await notifyAdmin(`✅ <b>Band qilish yangilandi</b>\n#${reservation.reservationNo}\nTo‘lov: ${reservation.paymentStatus}\nStatus: ${reservation.status}`);
+  await notifyCustomer(reservation.userTelegramId, `🪑 <b>Band qilish statusi yangilandi</b>\n#${reservation.reservationNo}\nTo‘lov: ${reservation.paymentStatus}\nStatus: ${reservation.status}`);
   res.json({ success: true, reservation });
 }));
 
@@ -789,21 +956,42 @@ app.patch('/api/admin/settings', verifyAdminToken, upload.single('logo'), asyncH
   res.json({ success: true, settings });
 }));
 
+app.get('/api/admin/bot/status', verifyAdminToken, asyncHandler(async (_req, res) => {
+  const webhookInfo = await telegramApi('getWebhookInfo', {});
+  res.json({
+    success: true,
+    bot: {
+      hasToken: Boolean(BOT_TOKEN),
+      publicUrl: PUBLIC_URL,
+      webAppUrl: WEBAPP_URL,
+      autoSetWebhook: AUTO_SET_WEBHOOK,
+      polling: TELEGRAM_POLLING,
+      webhookSecretEnabled: Boolean(TELEGRAM_WEBHOOK_SECRET),
+      webhookInfo,
+    },
+  });
+}));
+
+app.post('/api/admin/bot/setup-webhook', verifyAdminToken, asyncHandler(async (_req, res) => {
+  const result = await setupTelegramWebhook();
+  res.json({ success: Boolean(result?.ok), result, publicUrl: PUBLIC_URL, webAppUrl: WEBAPP_URL });
+}));
+
+app.post('/api/admin/bot/delete-webhook', verifyAdminToken, asyncHandler(async (_req, res) => {
+  const result = await telegramApi('deleteWebhook', { drop_pending_updates: false });
+  res.json({ success: Boolean(result?.ok), result });
+}));
+
+app.get('/telegram/webhook', (_req, res) => {
+  res.json({ ok: true, message: 'Telegram webhook endpoint ishlayapti. Telegram POST update yuboradi.' });
+});
+
 app.post('/telegram/webhook', asyncHandler(async (req, res) => {
-  const message = req.body?.message;
-  const chatId = message?.chat?.id;
-  const text = message?.text || '';
-  if (chatId && text.startsWith('/start')) {
-    const settings = await getSettingsDoc();
-    const webAppUrl = WEBAPP_URL || PUBLIC_URL;
-    await telegramApi('sendMessage', {
-      chat_id: chatId,
-      text: `Assalomu alaykum! ${settings.brandName} mini ilovasiga xush kelibsiz. Menyudan buyurtma bering yoki joy band qiling.`,
-      reply_markup: webAppUrl
-        ? { inline_keyboard: [[{ text: '🍽 Mini Appni ochish', web_app: { url: webAppUrl } }]] }
-        : undefined,
-    });
+  if (TELEGRAM_WEBHOOK_SECRET) {
+    const got = req.get('X-Telegram-Bot-Api-Secret-Token') || '';
+    if (got !== TELEGRAM_WEBHOOK_SECRET) return res.status(401).json({ ok: false, message: 'Webhook secret noto‘g‘ri.' });
   }
+  await handleTelegramUpdate(req.body);
   res.json({ ok: true });
 }));
 
@@ -826,8 +1014,18 @@ mongoose
   .connect(MONGODB_URI)
   .then(async () => {
     await seedDefaults();
-    app.listen(PORT, () => {
+    app.listen(PORT, async () => {
       console.log(`Kardeşler Döner server running on http://localhost:${PORT}`);
+      console.log(`PUBLIC_URL: ${PUBLIC_URL || 'not configured'}`);
+      console.log(`WEBAPP_URL: ${WEBAPP_URL || 'not configured'}`);
+      if (AUTO_SET_WEBHOOK && !TELEGRAM_POLLING) {
+        const result = await setupTelegramWebhook();
+        console.log('Telegram webhook setup:', result?.ok ? 'OK' : result?.description || result);
+      }
+      if (TELEGRAM_POLLING) {
+        await telegramApi('deleteWebhook', { drop_pending_updates: false });
+        startTelegramPolling();
+      }
     });
   })
   .catch((error) => {
