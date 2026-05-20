@@ -274,7 +274,7 @@ const settingsSchema = new mongoose.Schema(
     paymentCardHolder: { type: String, default: 'KARDESHLER DONER' },
     paymentInstructions: {
       type: String,
-      default: 'To‘lovni admin kartasiga o‘tkazing, chek screenshotini joylang. Admin tasdiqlagach status yangilanadi.',
+      default: 'Kartaga to‘lov qiling, chek rasmini yuboring — operatorlarimiz tasdiqlagach buyurtmangiz holati yangilanadi.',
     },
     adminTelegramChatId: { type: String, default: '' },
     reservationDeposit: { type: Number, default: 0 },
@@ -491,7 +491,7 @@ async function telegramApi(method, payload = {}) {
 async function answerStart(chatId, fromUser = null) {
   const settings = await getSettingsDoc();
   const buttons = [];
-  if (WEBAPP_URL) buttons.push([{ text: '🍽 Mini Appni ochish', web_app: { url: WEBAPP_URL } }]);
+  if (WEBAPP_URL) buttons.push([{ text: '🍽 Menyuni ochish', web_app: { url: WEBAPP_URL } }]);
   if (fromUser?.id && isAdminTelegramId(fromUser.id) && adminPanelUrl()) {
     buttons.push([{ text: '🛡 Admin panel', web_app: { url: adminPanelUrl() } }]);
   }
@@ -499,7 +499,7 @@ async function answerStart(chatId, fromUser = null) {
 
   const text = WEBAPP_URL
     ? `Assalomu alaykum! ${settings.brandName} mini ilovasiga xush kelibsiz. Menyudan buyurtma bering yoki joy band qiling.`
-    : `Assalomu alaykum! ${settings.brandName} bot ishga tushdi, lekin Mini App URL hali sozlanmagan. Admin paneldan yoki .env ichida PUBLIC_URL / WEBAPP_URL ni HTTPS domen qilib kiriting.`;
+    : `Assalomu alaykum! ${settings.brandName} bot ishga tushdi, lekin mijoz sahifasi URL hali sozlanmagan. Admin paneldan yoki .env ichida PUBLIC_URL / WEBAPP_URL ni HTTPS domen qilib kiriting.`;
 
   return telegramApi('sendMessage', {
     chat_id: chatId,
@@ -568,8 +568,8 @@ async function handleTelegramUpdate(update) {
 
   await telegramApi('sendMessage', {
     chat_id: chatId,
-    text: 'Buyurtma berish yoki joy band qilish uchun Mini Appni oching 👇',
-    reply_markup: WEBAPP_URL ? { inline_keyboard: [[{ text: '🍽 Mini Appni ochish', web_app: { url: WEBAPP_URL } }]] } : undefined,
+    text: 'Buyurtma berish yoki joy band qilish uchun menyuni oching 👇',
+    reply_markup: WEBAPP_URL ? { inline_keyboard: [[{ text: '🍽 Menyuni ochish', web_app: { url: WEBAPP_URL } }]] } : undefined,
   });
 }
 async function setupTelegramWebhook() {
@@ -695,7 +695,7 @@ app.post('/api/orders', upload.single('screenshot'), telegramAuth, asyncHandler(
     return res.status(400).json({ success: false, message: 'Savat bo‘sh.' });
   }
   if (!req.file) {
-    return res.status(400).json({ success: false, message: 'To‘lov screenshotini yuklang.' });
+    return res.status(400).json({ success: false, message: 'To‘lov cheki rasmini yuklang.' });
   }
   const phone = String(req.body.phone || '').trim();
   if (phone.length < 7) {
@@ -757,7 +757,7 @@ app.post('/api/orders', upload.single('screenshot'), telegramAuth, asyncHandler(
   });
 
   await notifyAdmin(
-    `🧾 <b>Yangi buyurtma</b>\n#${order.orderNo}\n👤 ${order.userFullName}\n📞 ${order.phone}\n🚚 ${order.deliveryServiceTitle}\n💰 ${formatMoney(order.total, settings.currency)}\n📌 Status: ${order.orderStatus} / ${order.paymentStatus}`,
+    `🧾 <b>Yangi buyurtma</b>\n#${order.orderNo}\n👤 ${order.userFullName}\n📞 ${order.phone}\n🚚 ${order.deliveryServiceTitle}\n💰 ${formatMoney(order.total, settings.currency)}\n📌 Holat: ${order.orderStatus} / ${order.paymentStatus}`,
     order.paymentScreenshotUrl
   );
 
@@ -772,7 +772,7 @@ app.get('/api/my/orders', telegramAuth, asyncHandler(async (req, res) => {
 app.post('/api/reservations', upload.single('screenshot'), telegramAuth, asyncHandler(async (req, res) => {
   const settings = await getSettingsDoc();
   if (!req.file && settings.reservationDeposit > 0) {
-    return res.status(400).json({ success: false, message: 'Band qilish uchun to‘lov screenshotini yuklang.' });
+    return res.status(400).json({ success: false, message: 'Band qilish uchun depozit cheki rasmini yuklang.' });
   }
 
   const date = String(req.body.date || '').trim();
@@ -858,7 +858,7 @@ app.post('/api/admin/login', asyncHandler(async (req, res) => {
 
   return res.status(401).json({
     success: false,
-    message: validated.reason || 'Admin panel faqat Telegram Mini App orqali va ADMIN_TELEGRAM_IDS ro‘yxatidagi ID uchun ochiladi.',
+    message: validated.reason || 'Admin panel faqat Telegram orqali va ADMIN_TELEGRAM_IDS ro‘yxatidagi ID uchun ochiladi.',
     hint: adminAccessHelp(),
   });
 }));
@@ -901,7 +901,7 @@ app.patch('/api/admin/orders/:id', verifyAdminToken, asyncHandler(async (req, re
   for (const key of allowed) if (req.body[key] !== undefined) update[key] = req.body[key];
   const order = await Order.findByIdAndUpdate(req.params.id, update, { new: true, runValidators: true });
   if (!order) return res.status(404).json({ success: false, message: 'Buyurtma topilmadi.' });
-  await notifyCustomer(order.userTelegramId, `📦 <b>Buyurtma statusi yangilandi</b>\n#${order.orderNo}\nTo‘lov: ${order.paymentStatus}\nStatus: ${order.orderStatus}`);
+  await notifyCustomer(order.userTelegramId, `📦 <b>Buyurtma holati yangilandi</b>\n#${order.orderNo}\nTo‘lov: ${order.paymentStatus}\nStatus: ${order.orderStatus}`);
   res.json({ success: true, order });
 }));
 
@@ -919,7 +919,7 @@ app.patch('/api/admin/reservations/:id', verifyAdminToken, asyncHandler(async (r
   for (const key of allowed) if (req.body[key] !== undefined) update[key] = req.body[key];
   const reservation = await Reservation.findByIdAndUpdate(req.params.id, update, { new: true, runValidators: true });
   if (!reservation) return res.status(404).json({ success: false, message: 'Band qilish topilmadi.' });
-  await notifyCustomer(reservation.userTelegramId, `🪑 <b>Band qilish statusi yangilandi</b>\n#${reservation.reservationNo}\nTo‘lov: ${reservation.paymentStatus}\nStatus: ${reservation.status}`);
+  await notifyCustomer(reservation.userTelegramId, `🪑 <b>Bron holati yangilandi</b>\n#${reservation.reservationNo}\nTo‘lov: ${reservation.paymentStatus}\nStatus: ${reservation.status}`);
   res.json({ success: true, reservation });
 }));
 
