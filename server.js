@@ -19,6 +19,13 @@ const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/kardes
 const BOT_TOKEN = process.env.BOT_TOKEN || '';
 const APP_SECRET = process.env.APP_SECRET || crypto.randomBytes(32).toString('hex');
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin12345';
+const ADMIN_TELEGRAM_IDS = new Set(
+  String(process.env.ADMIN_TELEGRAM_IDS || process.env.ADMIN_TELEGRAM_ID || '')
+    .split(/[\s,;]+/)
+    .map((id) => id.trim())
+    .filter(Boolean)
+);
+const ALLOW_PASSWORD_ADMIN = String(process.env.ALLOW_PASSWORD_ADMIN || 'false').toLowerCase() === 'true';
 const REQUIRE_TELEGRAM_AUTH = String(process.env.REQUIRE_TELEGRAM_AUTH || 'false').toLowerCase() === 'true';
 function cleanPublicUrl(value) {
   const raw = String(value || '').trim().replace(/\/$/, '');
@@ -86,6 +93,34 @@ function normalizeNumber(value) {
 function parseBoolean(value, fallback = false) {
   if (value === undefined || value === null || value === '') return fallback;
   return ['true', '1', 'yes', 'on', 'ha'].includes(String(value).toLowerCase());
+}
+
+function isAdminTelegramId(id) {
+  return ADMIN_TELEGRAM_IDS.has(String(id || '').trim());
+}
+
+function adminIdsConfigured() {
+  return ADMIN_TELEGRAM_IDS.size > 0;
+}
+
+function adminAccessHelp() {
+  if (!adminIdsConfigured()) return 'ADMIN_TELEGRAM_IDS .env faylida sozlanmagan. Telegramda botga /id yuboring va User ID ni ADMIN_TELEGRAM_IDS ga kiriting.';
+  return 'Bu Telegram akkaunt admin ro‘yxatida yo‘q.';
+}
+
+function adminPanelUrl() {
+  return PUBLIC_URL ? `${PUBLIC_URL}/admin` : '';
+}
+
+function safeTelegramUser(user) {
+  if (!user) return null;
+  return {
+    id: String(user.id || ''),
+    first_name: user.first_name || '',
+    last_name: user.last_name || '',
+    username: user.username || '',
+    photo_url: user.photo_url || '',
+  };
 }
 
 function safeJsonParse(value, fallback) {
@@ -216,6 +251,9 @@ function verifyAdminToken(req, res, next) {
 
   const payload = safeJsonParse(Buffer.from(body, 'base64url').toString('utf8'), null);
   if (!payload || payload.exp < Date.now()) return res.status(401).json({ success: false, message: 'Admin token muddati tugagan.' });
+  if (payload.role !== 'admin') return res.status(403).json({ success: false, message: 'Admin huquqi yo‘q.' });
+  if (payload.tgId && !isAdminTelegramId(payload.tgId)) return res.status(403).json({ success: false, message: 'Bu admin ID endi ruxsat ro‘yxatida yo‘q.' });
+  if (payload.fallback && !ALLOW_PASSWORD_ADMIN) return res.status(403).json({ success: false, message: 'Parol orqali admin kirish o‘chirilgan.' });
   req.admin = payload;
   next();
 }
@@ -450,10 +488,13 @@ async function telegramApi(method, payload = {}) {
   }
 }
 
-async function answerStart(chatId) {
+async function answerStart(chatId, fromUser = null) {
   const settings = await getSettingsDoc();
   const buttons = [];
   if (WEBAPP_URL) buttons.push([{ text: '🍽 Mini Appni ochish', web_app: { url: WEBAPP_URL } }]);
+  if (fromUser?.id && isAdminTelegramId(fromUser.id) && adminPanelUrl()) {
+    buttons.push([{ text: '🛡 Admin panel', web_app: { url: adminPanelUrl() } }]);
+  }
   buttons.push([{ text: '📞 Telefon', callback_data: 'phone' }]);
 
   const text = WEBAPP_URL
@@ -466,7 +507,6 @@ async function answerStart(chatId) {
     reply_markup: { inline_keyboard: buttons },
   });
 }
-
 async function handleTelegramUpdate(update) {
   const message = update?.message || update?.edited_message;
   const callback = update?.callback_query;
@@ -486,18 +526,42 @@ async function handleTelegramUpdate(update) {
   }
 
   const chatId = message?.chat?.id;
+  const fromUser = message?.from || null;
   const text = String(message?.text || '').trim();
   if (!chatId) return;
 
   if (text.startsWith('/start')) {
-    await answerStart(chatId);
+    await answerStart(chatId, fromUser);
+    return;
+  }
+
+  if (text.startsWith('/admin')) {
+    if (!fromUser?.id || !isAdminTelegramId(fromUser.id)) {
+      await telegramApi('sendMessage', {
+        chat_id: chatId,
+        text: `⛔ Admin panel faqat ruxsat berilgan Telegram ID uchun ochiladi.\n\n${adminAccessHelp()}\n\nID olish uchun /id yuboring.`,
+      });
+      return;
+    }
+    if (!adminPanelUrl()) {
+      await telegramApi('sendMessage', {
+        chat_id: chatId,
+        text: 'Admin panel URL hali sozlanmagan. .env ichida PUBLIC_URL ni real HTTPS domen qilib kiriting.',
+      });
+      return;
+    }
+    await telegramApi('sendMessage', {
+      chat_id: chatId,
+      text: '🛡 Admin panelni Telegram ichida oching:',
+      reply_markup: { inline_keyboard: [[{ text: 'Admin panelni ochish', web_app: { url: adminPanelUrl() } }]] },
+    });
     return;
   }
 
   if (text.startsWith('/id') || text.startsWith('/chatid')) {
     await telegramApi('sendMessage', {
       chat_id: chatId,
-      text: `Chat ID: ${chatId}\nBu ID ni ADMIN_TELEGRAM_CHAT_ID ga qo‘yishingiz mumkin.`,
+      text: `User ID: ${fromUser?.id || 'unknown'}\nChat ID: ${chatId}\n\nAdmin panel uchun .env ichidagi ADMIN_TELEGRAM_IDS ga User ID ni kiriting. Admin xabarlari uchun ADMIN_TELEGRAM_CHAT_ID yoki sozlamadagi admin chat ID ga Chat ID ni qo‘yishingiz mumkin.`,
     });
     return;
   }
@@ -508,7 +572,6 @@ async function handleTelegramUpdate(update) {
     reply_markup: WEBAPP_URL ? { inline_keyboard: [[{ text: '🍽 Mini Appni ochish', web_app: { url: WEBAPP_URL } }]] } : undefined,
   });
 }
-
 async function setupTelegramWebhook() {
   if (!BOT_TOKEN) return { ok: false, description: 'BOT_TOKEN sozlanmagan.' };
   if (!PUBLIC_URL) return { ok: false, description: 'PUBLIC_URL / WEBAPP_URL uchun real HTTPS domen kerak.' };
@@ -771,13 +834,38 @@ app.get('/api/my/reservations', telegramAuth, asyncHandler(async (req, res) => {
 }));
 
 app.post('/api/admin/login', asyncHandler(async (req, res) => {
-  const password = String(req.body.password || '');
-  if (!ADMIN_PASSWORD || password !== ADMIN_PASSWORD) {
-    return res.status(401).json({ success: false, message: 'Admin parol noto‘g‘ri.' });
+  const initData = req.get('X-Telegram-Init-Data') || req.body?.initData || '';
+  const validated = validateTelegramInitData(initData);
+
+  if (validated.ok && validated.user?.id) {
+    const tgUser = safeTelegramUser(validated.user);
+    if (!isAdminTelegramId(tgUser.id)) {
+      return res.status(403).json({ success: false, message: adminAccessHelp(), userId: tgUser.id });
+    }
+    return res.json({
+      success: true,
+      token: signAdminToken({ role: 'admin', tgId: tgUser.id, username: tgUser.username, name: userFullName(tgUser, 'Admin') }),
+      admin: tgUser,
+    });
   }
-  res.json({ success: true, token: signAdminToken({ role: 'admin' }) });
+
+  if (ALLOW_PASSWORD_ADMIN) {
+    const password = String(req.body.password || '');
+    if (ADMIN_PASSWORD && password === ADMIN_PASSWORD) {
+      return res.json({ success: true, token: signAdminToken({ role: 'admin', fallback: true, name: 'Password admin' }), admin: { id: 'password-admin', first_name: 'Password', last_name: 'Admin' } });
+    }
+  }
+
+  return res.status(401).json({
+    success: false,
+    message: validated.reason || 'Admin panel faqat Telegram Mini App orqali va ADMIN_TELEGRAM_IDS ro‘yxatidagi ID uchun ochiladi.',
+    hint: adminAccessHelp(),
+  });
 }));
 
+app.get('/api/admin/me', verifyAdminToken, asyncHandler(async (req, res) => {
+  res.json({ success: true, admin: req.admin, adminIdsConfigured: adminIdsConfigured(), adminIdsCount: ADMIN_TELEGRAM_IDS.size });
+}));
 app.get('/api/admin/dashboard', verifyAdminToken, asyncHandler(async (_req, res) => {
   const [ordersTotal, ordersPending, reservationsPending, productsTotal, revenueAgg] = await Promise.all([
     Order.countDocuments(),
@@ -967,6 +1055,10 @@ app.get('/api/admin/bot/status', verifyAdminToken, asyncHandler(async (_req, res
       autoSetWebhook: AUTO_SET_WEBHOOK,
       polling: TELEGRAM_POLLING,
       webhookSecretEnabled: Boolean(TELEGRAM_WEBHOOK_SECRET),
+      adminIdsConfigured: adminIdsConfigured(),
+      adminIdsCount: ADMIN_TELEGRAM_IDS.size,
+      adminPanelUrl: adminPanelUrl(),
+      passwordFallbackEnabled: ALLOW_PASSWORD_ADMIN,
       webhookInfo,
     },
   });

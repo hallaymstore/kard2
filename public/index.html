@@ -7,237 +7,81 @@
   <title>Kardeşler Döner — Mini App</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <style>
-    :root{
-      --red:#d71313; --red2:#b90808; --soft:#fff2f2; --ink:#171717; --muted:#737373;
-      --line:#eeeeee; --white:#ffffff; --shadow:0 18px 45px rgba(215,19,19,.12); --radius:24px;
-    }
-    *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-    html,body{margin:0;padding:0;font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#fff;color:var(--ink)}
-    body{min-height:100vh;padding-bottom:92px;background:linear-gradient(180deg,#fff 0%,#fff7f7 52%,#fff 100%)}
-    button,input,textarea,select{font:inherit}
-    button{border:0;cursor:pointer}
-    .app{max-width:760px;margin:0 auto;padding:16px 14px 110px}
-    .hero{position:relative;overflow:hidden;background:radial-gradient(circle at top right,#ffdddd,transparent 34%),linear-gradient(135deg,#ffffff,#fff6f6);border:1px solid #ffe0e0;border-radius:32px;padding:16px;box-shadow:var(--shadow)}
-    .topbar{display:flex;align-items:center;justify-content:space-between;gap:12px}
-    .brand{display:flex;align-items:center;gap:12px;min-width:0}
-    .logo{width:58px;height:58px;border-radius:20px;background:#fff;border:2px solid #ffe1e1;display:grid;place-items:center;box-shadow:0 12px 24px rgba(215,19,19,.15);overflow:hidden;flex:0 0 auto}
-    .logo img{width:100%;height:100%;object-fit:cover}.logo-fallback{width:44px;height:44px;border-radius:15px;background:var(--red);color:#fff;display:grid;place-items:center;font-weight:950;font-size:18px}
-    .brand h1{margin:0;font-size:21px;letter-spacing:-.5px}.brand p{margin:2px 0 0;color:var(--muted);font-size:12.5px;line-height:1.25}.pill{background:#fff;border:1px solid #ffd7d7;color:var(--red);font-weight:800;padding:9px 11px;border-radius:999px;font-size:12px;white-space:nowrap}
-    .hero-grid{display:grid;grid-template-columns:1fr auto;gap:14px;align-items:end;margin-top:18px}.hero h2{margin:0;font-size:27px;line-height:1.04;letter-spacing:-1px}.hero .sub{margin:9px 0 0;color:#575757;font-size:14px;line-height:1.45}.hero-emoji{font-size:76px;filter:drop-shadow(0 14px 20px rgba(215,19,19,.2));transform:rotate(-7deg)}
-    .quick{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:14px 0}.quick button,.primary,.danger,.ghost{border-radius:18px;padding:13px 14px;font-weight:900}.quick button,.primary{background:linear-gradient(135deg,var(--red),#ff3636);color:#fff;box-shadow:0 14px 24px rgba(215,19,19,.22)}.ghost{background:#fff;color:var(--red);border:1px solid #ffd0d0}.danger{background:#171717;color:#fff}
-    .section{display:none;animation:rise .22s ease}.section.active{display:block}@keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
-    .toolbar{position:sticky;top:0;z-index:8;background:rgba(255,255,255,.86);backdrop-filter:blur(16px);padding:12px 0;margin:6px 0 10px}.search{display:flex;gap:9px;background:#fff;border:1px solid var(--line);border-radius:20px;padding:9px 11px;box-shadow:0 8px 24px rgba(0,0,0,.04)}.search input{border:0;outline:0;flex:1;min-width:0;background:transparent;font-weight:700}.chips{display:flex;gap:8px;overflow:auto;padding:10px 0 2px;scrollbar-width:none}.chips::-webkit-scrollbar{display:none}.chip{white-space:nowrap;background:#fff;border:1px solid #ffd6d6;color:#9b1414;border-radius:999px;padding:10px 13px;font-weight:900}.chip.active{background:var(--red);color:#fff;border-color:var(--red)}
-    .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.card{background:#fff;border:1px solid #f0eeee;border-radius:24px;box-shadow:0 12px 28px rgba(0,0,0,.055);overflow:hidden}.food{display:flex;flex-direction:column;min-height:100%}.food-img{height:130px;background:linear-gradient(135deg,#fff5f5,#ffe1e1);display:grid;place-items:center;position:relative;overflow:hidden}.food-img img{width:100%;height:100%;object-fit:cover}.food-img span{font-size:62px}.badge{position:absolute;left:10px;top:10px;background:#fff;color:var(--red);border:1px solid #ffd0d0;border-radius:999px;padding:6px 9px;font-size:11px;font-weight:950}.food-body{padding:12px;display:flex;flex-direction:column;gap:8px;flex:1}.food h3{font-size:15px;margin:0;line-height:1.15}.food p{font-size:12px;color:var(--muted);line-height:1.35;margin:0;min-height:32px}.price-row{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:auto}.price{font-weight:950;color:#111;font-size:15px}.old{text-decoration:line-through;color:#aaa;font-size:12px}.add{width:42px;height:42px;border-radius:16px;background:var(--red);color:#fff;font-size:22px;font-weight:900;box-shadow:0 10px 18px rgba(215,19,19,.24)}
-    .panel{background:#fff;border:1px solid #f1e7e7;border-radius:28px;padding:15px;box-shadow:0 14px 34px rgba(0,0,0,.05);margin:13px 0}.panel h2{margin:0 0 10px;font-size:22px;letter-spacing:-.5px}.panel h3{margin:4px 0 10px;font-size:16px}.muted{color:var(--muted);font-size:13px;line-height:1.45}.row{display:flex;gap:10px}.row>*{flex:1}.field{display:flex;flex-direction:column;gap:7px;margin:10px 0}.field label{font-size:12px;font-weight:900;color:#555}.field input,.field textarea,.field select{width:100%;border:1px solid #ece3e3;border-radius:17px;background:#fff;padding:13px 12px;outline:0}.field textarea{min-height:84px;resize:vertical}.file{background:#fff6f6;border:1px dashed #e94545!important}.paybox{background:linear-gradient(135deg,#d71313,#ff3434);color:#fff;border-radius:24px;padding:15px;margin:10px 0;box-shadow:0 14px 24px rgba(215,19,19,.2)}.paybox small{opacity:.85}.paybox strong{display:block;font-size:20px;letter-spacing:.5px;margin:6px 0}.paybox .copy{background:#fff;color:var(--red);border-radius:14px;padding:9px 12px;font-weight:950;margin-top:10px}.line{height:1px;background:var(--line);margin:12px 0}.cart-item,.status-card{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;border:1px solid #f1e4e4;border-radius:20px;padding:12px;margin:9px 0;background:#fff}.qty{display:flex;align-items:center;gap:8px;background:#fff3f3;border-radius:999px;padding:5px}.qty button{width:32px;height:32px;border-radius:999px;background:var(--red);color:#fff;font-weight:950}.total{display:flex;justify-content:space-between;align-items:center;font-size:18px;font-weight:950;margin:12px 0}.empty{padding:24px;text-align:center;color:#777;background:#fff;border:1px dashed #ffd1d1;border-radius:24px}.status{display:inline-flex;border-radius:999px;padding:6px 10px;font-size:11px;font-weight:950;background:#fff0f0;color:var(--red);border:1px solid #ffd0d0}.status.ok{background:#eaffef;color:#15803d;border-color:#bbf7d0}.status.bad{background:#fff1f2;color:#be123c;border-color:#fecdd3}.toast{position:fixed;left:50%;bottom:96px;transform:translateX(-50%) translateY(20px);z-index:50;background:#171717;color:#fff;border-radius:18px;padding:12px 15px;font-weight:800;opacity:0;transition:.22s;max-width:92%;text-align:center}.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
-    .bottom-nav{position:fixed;left:50%;bottom:12px;transform:translateX(-50%);width:min(760px,calc(100% - 22px));z-index:40;background:rgba(255,255,255,.92);backdrop-filter:blur(18px);border:1px solid #ffe0e0;border-radius:28px;box-shadow:0 22px 60px rgba(0,0,0,.14);display:grid;grid-template-columns:repeat(5,1fr);gap:4px;padding:7px}.navbtn{border-radius:20px;background:transparent;color:#777;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:8px 2px;font-size:11px;font-weight:900}.navbtn .ico{font-size:19px}.navbtn.active{background:var(--red);color:#fff;box-shadow:0 10px 22px rgba(215,19,19,.22)}.cart-badge{position:absolute;top:3px;right:18%;background:#111;color:#fff;border-radius:999px;min-width:18px;height:18px;padding:0 5px;font-size:11px;display:none;place-items:center}.navwrap{position:relative;width:100%}
-    @media (min-width:680px){.grid{grid-template-columns:repeat(3,minmax(0,1fr))}.food-img{height:148px}.hero h2{font-size:34px}}
-    @media (max-width:390px){.hero-grid{grid-template-columns:1fr}.hero-emoji{display:none}.grid{gap:9px}.food-img{height:118px}.brand h1{font-size:18px}.pill{display:none}.row{flex-direction:column;gap:0}}
+    :root{--red:#d71313;--red2:#ff3b3b;--bg:#fff8f8;--card:#fff;--glass:rgba(255,255,255,.78);--ink:#171717;--muted:#737373;--line:#f1dddd;--soft:#fff0f0;--good:#16a34a;--bad:#e11d48;--shadow:0 18px 48px rgba(90,0,0,.10);--shadow2:0 12px 28px rgba(215,19,19,.20)}
+    [data-theme="dark"]{--bg:#0f0b0b;--card:#171111;--glass:rgba(23,17,17,.78);--ink:#fff7f7;--muted:#bcaeae;--line:#342020;--soft:#261414;--shadow:0 18px 48px rgba(0,0,0,.45);--shadow2:0 12px 28px rgba(215,19,19,.22)}
+    *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}body{margin:0;min-height:100vh;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:radial-gradient(circle at 85% -10%,rgba(215,19,19,.18),transparent 34%),linear-gradient(180deg,var(--bg),var(--bg));color:var(--ink);padding-bottom:94px}button,input,textarea,select{font:inherit;color:inherit}button{border:0;cursor:pointer}.app{width:min(780px,100%);margin:0 auto;padding:12px 12px 106px}.hero{position:relative;overflow:hidden;background:var(--glass);backdrop-filter:blur(22px);border:1px solid var(--line);border-radius:30px;padding:13px;box-shadow:var(--shadow)}.topbar{display:flex;align-items:center;justify-content:space-between;gap:10px}.brand{display:flex;align-items:center;gap:10px;min-width:0}.logo{width:52px;height:52px;border-radius:19px;background:var(--card);border:1px solid var(--line);display:grid;place-items:center;box-shadow:var(--shadow2);overflow:hidden;flex:0 0 auto;position:relative}.logo:after{content:"";position:absolute;inset:-50%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.42),transparent);transform:rotate(25deg);animation:shine 3.8s infinite}.logo img{width:100%;height:100%;object-fit:cover}.logo-fallback{width:40px;height:40px;border-radius:15px;background:linear-gradient(135deg,var(--red),var(--red2));color:#fff;display:grid;place-items:center;font-weight:1000;font-size:16px}.brand h1{margin:0;font-size:19px;letter-spacing:-.55px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.brand p{margin:2px 0 0;color:var(--muted);font-size:11.5px;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:52vw}.header-actions{display:flex;gap:7px;align-items:center}.pill,.iconbtn{border:1px solid var(--line);background:var(--card);border-radius:999px;color:var(--red);font-weight:950;font-size:11px}.pill{padding:8px 10px;white-space:nowrap}.iconbtn{width:39px;height:39px;display:grid;place-items:center;font-size:16px}.hero-grid{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:end;margin-top:15px}.hero h2{font-size:25px;line-height:1.02;letter-spacing:-1px;margin:0}.hero .sub{margin:8px 0 0;color:var(--muted);font-size:13px;line-height:1.42}.hero-emoji{font-size:70px;filter:drop-shadow(0 14px 22px rgba(215,19,19,.2));animation:float 2.8s ease-in-out infinite}.quick{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:13px}.btn,.ghost,.danger{border-radius:16px;padding:11px 12px;font-weight:950;transition:.18s transform,.18s filter}.btn{background:linear-gradient(135deg,var(--red),var(--red2));color:#fff;box-shadow:var(--shadow2)}.ghost{background:var(--card);color:var(--red);border:1px solid var(--line)}.danger{background:#171111;color:#fff}.btn:active,.ghost:active,.iconbtn:active{transform:scale(.97)}.section{display:none;animation:rise .22s ease}.section.active{display:block}.toolbar{position:sticky;top:0;z-index:20;background:linear-gradient(180deg,var(--bg),rgba(255,248,248,.66));backdrop-filter:blur(15px);padding:10px 0;margin:6px 0 8px}.search{display:flex;align-items:center;gap:8px;background:var(--card);border:1px solid var(--line);border-radius:18px;padding:9px 11px;box-shadow:0 8px 20px rgba(0,0,0,.035)}.search input{border:0;outline:0;background:transparent;min-width:0;flex:1;font-weight:800}.chips{display:flex;gap:7px;overflow:auto;padding:9px 0 1px;scrollbar-width:none}.chips::-webkit-scrollbar{display:none}.chip{white-space:nowrap;background:var(--card);border:1px solid var(--line);color:var(--red);border-radius:999px;padding:9px 11px;font-size:12px;font-weight:950}.chip.active{background:linear-gradient(135deg,var(--red),var(--red2));color:#fff;border-color:transparent}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.food{background:var(--card);border:1px solid var(--line);border-radius:22px;overflow:hidden;box-shadow:var(--shadow);display:flex;flex-direction:column;min-height:100%}.food-img{height:112px;background:linear-gradient(135deg,var(--soft),rgba(215,19,19,.13));display:grid;place-items:center;position:relative;overflow:hidden}.food-img img{width:100%;height:100%;object-fit:cover}.food-img span{font-size:54px;animation:breathe 2.4s ease-in-out infinite}.badge{position:absolute;top:8px;left:8px;background:var(--card);color:var(--red);border:1px solid var(--line);border-radius:999px;padding:5px 8px;font-size:10px;font-weight:1000}.food-body{padding:10px;display:flex;flex-direction:column;gap:7px;flex:1}.food h3{font-size:14px;margin:0;line-height:1.15;letter-spacing:-.2px}.food p{font-size:11.5px;color:var(--muted);line-height:1.35;margin:0;min-height:31px}.price-row{display:flex;justify-content:space-between;align-items:center;gap:7px;margin-top:auto}.price{font-weight:1000;font-size:14px}.old{text-decoration:line-through;color:var(--muted);font-size:11px}.add{width:38px;height:38px;border-radius:15px;background:linear-gradient(135deg,var(--red),var(--red2));color:#fff;font-size:22px;font-weight:1000;box-shadow:var(--shadow2)}.panel{background:var(--card);border:1px solid var(--line);border-radius:24px;padding:13px;box-shadow:var(--shadow);margin:10px 0}.panel h2{margin:0 0 8px;font-size:20px;letter-spacing:-.5px}.panel h3{font-size:15px;margin:10px 0 8px}.muted{color:var(--muted);font-size:12.5px;line-height:1.45}.row{display:flex;gap:9px}.row>*{flex:1}.field{display:flex;flex-direction:column;gap:6px;margin:9px 0}.field label{font-size:11px;font-weight:950;color:var(--muted)}.field input,.field textarea,.field select{width:100%;border:1px solid var(--line);border-radius:16px;background:var(--bg);padding:11px;outline:0;font-size:13px}.field textarea{min-height:78px;resize:vertical}.file{border-style:dashed!important;background:var(--soft)!important}.paybox{background:linear-gradient(135deg,var(--red),var(--red2));color:#fff;border-radius:22px;padding:13px;margin:10px 0;box-shadow:var(--shadow2);position:relative;overflow:hidden}.paybox:after{content:"";position:absolute;right:-30px;top:-30px;width:100px;height:100px;border-radius:999px;background:rgba(255,255,255,.13)}.paybox small{opacity:.88;font-size:11px}.paybox strong{display:block;font-size:19px;letter-spacing:.4px;margin:5px 0}.paybox .copy{background:#fff;color:var(--red);border-radius:13px;padding:8px 10px;font-weight:950;margin-top:9px}.cart-item,.status-card,.info-card{display:grid;grid-template-columns:1fr auto;gap:9px;align-items:center;border:1px solid var(--line);border-radius:18px;padding:10px;margin:8px 0;background:var(--bg)}.qty{display:flex;align-items:center;gap:7px;background:var(--soft);border-radius:999px;padding:4px}.qty button{width:30px;height:30px;border-radius:999px;background:var(--red);color:#fff;font-weight:1000}.total{display:flex;justify-content:space-between;align-items:center;font-size:17px;font-weight:1000;margin:10px 0}.empty{padding:22px;text-align:center;color:var(--muted);background:var(--card);border:1px dashed var(--line);border-radius:22px}.status{display:inline-flex;border-radius:999px;padding:5px 8px;font-size:10.5px;font-weight:1000;background:var(--soft);color:var(--red);border:1px solid var(--line);margin-top:6px}.status.ok{background:rgba(22,163,74,.1);color:var(--good);border-color:rgba(22,163,74,.28)}.status.bad{background:rgba(225,29,72,.1);color:var(--bad);border-color:rgba(225,29,72,.28)}.toast{position:fixed;left:50%;bottom:91px;transform:translateX(-50%) translateY(18px);opacity:0;background:#171111;color:#fff;border-radius:17px;padding:11px 14px;font-size:13px;font-weight:900;box-shadow:0 18px 48px rgba(0,0,0,.22);transition:.22s;z-index:1000;text-align:center;max-width:92%}.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}.bottom-nav{position:fixed;left:50%;bottom:12px;transform:translateX(-50%);width:min(760px,calc(100% - 22px));z-index:80;background:var(--glass);backdrop-filter:blur(22px);border:1px solid var(--line);border-radius:26px;box-shadow:0 22px 60px rgba(0,0,0,.18);display:grid;grid-template-columns:repeat(5,1fr);gap:5px;padding:6px}.navbtn{position:relative;border-radius:18px;background:transparent;color:var(--muted);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;padding:7px 2px;font-size:10.5px;font-weight:950}.navbtn .ico{font-size:18px;animation:float 3s ease-in-out infinite}.navbtn.active{background:linear-gradient(135deg,var(--red),var(--red2));color:#fff;box-shadow:var(--shadow2)}.cart-badge{position:absolute;top:3px;right:20%;background:#111;color:#fff;border-radius:999px;min-width:17px;height:17px;padding:0 5px;font-size:10px;display:none;place-items:center}.line{height:1px;background:var(--line);margin:11px 0}
+    @keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}@keyframes breathe{50%{transform:scale(1.045)}}@keyframes shine{0%,55%{transform:translateX(-70%) rotate(25deg)}80%,100%{transform:translateX(70%) rotate(25deg)}}
+    @media(min-width:680px){.grid{grid-template-columns:repeat(3,minmax(0,1fr))}.food-img{height:134px}.hero h2{font-size:31px}}@media(max-width:430px){.hero-grid{grid-template-columns:1fr}.hero-emoji{display:none}.brand h1{font-size:17px}.brand p{max-width:42vw}.pill{display:none}.row{flex-direction:column;gap:0}.food-img{height:104px}.bottom-nav span{display:none}.navbtn .ico{font-size:20px}.panel{padding:11px}}
   </style>
 </head>
 <body>
-  <div class="app">
-    <header class="hero">
-      <div class="topbar">
-        <div class="brand">
-          <div class="logo" id="brandLogo"><div class="logo-fallback">KD</div></div>
-          <div><h1 id="brandName">Kardeşler Döner</h1><p id="brandSubtitle">Turkcha doner va joy band qilish</p></div>
-        </div>
-        <div class="pill" id="openHours">10:00–23:00</div>
-      </div>
-      <div class="hero-grid">
-        <div>
-          <h2>Doner buyurtma qiling yoki stolni oldindan band qiling.</h2>
-          <p class="sub">To‘lovni karta orqali yuboring, screenshot joylang — admin tasdiqlagach status ko‘rinib turadi.</p>
-        </div>
-        <div class="hero-emoji">🥙</div>
-      </div>
-      <div class="quick">
-        <button onclick="showSection('menu')">🍽 Menyu</button>
-        <button onclick="showSection('reserve')">🪑 Joy band qilish</button>
-      </div>
-    </header>
+<div class="app">
+  <header class="hero">
+    <div class="topbar">
+      <div class="brand"><div class="logo" id="brandLogo"><div class="logo-fallback">KD</div></div><div><h1 id="brandName">Kardeşler Döner</h1><p id="brandSubtitle">Turkcha doner va joy band qilish</p></div></div>
+      <div class="header-actions"><button class="iconbtn" onclick="toggleTheme()" title="Kunduz/tun">◐</button><div class="pill" id="openHours">10:00–23:00</div></div>
+    </div>
+    <div class="hero-grid"><div><h2>Doner buyurtma qiling yoki stolni oldindan band qiling.</h2><p class="sub">Karta to‘lovi → screenshot → admin tasdiqlaydi → status Telegram Mini App’da ko‘rinadi.</p></div><div class="hero-emoji">🥙</div></div>
+    <div class="quick"><button class="btn" onclick="showSection('menu')">🍽 Menyu</button><button class="ghost" onclick="showSection('reserve')">🪑 Joy band qilish</button></div>
+  </header>
 
-    <main>
-      <section id="menu" class="section active">
-        <div class="toolbar">
-          <div class="search"><span>🔎</span><input id="searchInput" placeholder="Doner, ayran, set..." oninput="renderProducts()" /></div>
-          <div class="chips" id="categoryChips"></div>
-        </div>
-        <div class="grid" id="productGrid"></div>
-      </section>
+  <main>
+    <section id="menu" class="section active"><div class="toolbar"><div class="search"><span>🔎</span><input id="searchInput" placeholder="Doner, ayran, set..." oninput="renderProducts()"></div><div class="chips" id="categoryChips"></div></div><div class="grid" id="productGrid"></div></section>
 
-      <section id="cart" class="section">
-        <div class="panel">
-          <h2>🛒 Savat</h2>
-          <p class="muted">Mahsulotlar, yetkazish turi va to‘lov screenshotini kiriting.</p>
-          <div id="cartList"></div>
-          <div class="line"></div>
-          <div class="field"><label>Buyurtma turi</label><select id="orderType" onchange="renderCart()"><option value="DELIVERY">Yetkazib berish</option><option value="PICKUP">Olib ketish</option></select></div>
-          <div class="field" id="deliveryField"><label>Yetkazib berish xizmati</label><select id="deliveryService" onchange="renderCart()"></select></div>
-          <div class="field"><label>Telefon raqam</label><input id="orderPhone" placeholder="+998 90 123 45 67" autocomplete="tel" /></div>
-          <div class="field"><label>Ism</label><input id="orderFullName" placeholder="Ismingiz" /></div>
-          <div class="field" id="addressField"><label>Manzil</label><textarea id="orderAddress" placeholder="Mahalla, ko‘cha, uy, mo‘ljal"></textarea></div>
-          <div class="field"><label>Izoh</label><textarea id="orderNote" placeholder="Masalan: achchiq bo‘lmasin, qo‘ng‘iroq qiling..."></textarea></div>
-          <div id="paymentBox" class="paybox"></div>
-          <div class="field"><label>To‘lov screenshoti</label><input class="file" id="orderScreenshot" type="file" accept="image/*" /></div>
-          <div class="total"><span>Jami</span><strong id="cartTotal">0 UZS</strong></div>
-          <button class="primary" style="width:100%" onclick="submitOrder()">Buyurtmani yuborish</button>
-        </div>
-      </section>
+    <section id="cart" class="section"><div class="panel"><h2>🛒 Savat</h2><p class="muted">Mahsulot, yetkazish turi va to‘lov screenshotini kiriting.</p><div id="cartList"></div><div class="field"><label>Buyurtma turi</label><select id="orderType" onchange="renderCart()"><option value="DELIVERY">Yetkazib berish</option><option value="PICKUP">Olib ketish</option></select></div><div class="field" id="deliveryField"><label>Yetkazish xizmati</label><select id="deliveryService" onchange="renderCart()"></select></div><div class="total"><span>Jami</span><span id="cartTotal">0 UZS</span></div><div class="paybox" id="paymentBox"></div><div class="row"><div class="field"><label>Ism</label><input id="orderFullName" placeholder="Ismingiz"></div><div class="field"><label>Telefon</label><input id="orderPhone" placeholder="+998 ..." inputmode="tel"></div></div><div class="field" id="addressField"><label>Manzil</label><textarea id="orderAddress" placeholder="Tuman, ko‘cha, uy, mo‘ljal"></textarea></div><div class="field"><label>Izoh</label><textarea id="orderNote" placeholder="Masalan: sous ko‘proq, achchiqsiz..."></textarea></div><div class="field"><label>To‘lov screenshot</label><input class="file" id="orderScreenshot" type="file" accept="image/*"></div><button class="btn" style="width:100%" onclick="submitOrder()">Buyurtmani yuborish</button></div></section>
 
-      <section id="reserve" class="section">
-        <div class="panel">
-          <h2>🪑 Joy band qilish</h2>
-          <p class="muted">Sana va vaqt oralig‘ini tanlang. Band qilish admin tasdig‘idan keyin kuchga kiradi.</p>
-          <div class="row"><div class="field"><label>Sana</label><input id="rDate" type="date" /></div><div class="field"><label>Mehmonlar</label><input id="rGuests" type="number" min="1" value="2" /></div></div>
-          <div class="row"><div class="field"><label>Boshlanish</label><input id="rStart" type="time" value="19:00" /></div><div class="field"><label>Tugash</label><input id="rEnd" type="time" value="21:00" /></div></div>
-          <div class="field"><label>Joy turi</label><select id="rArea"></select></div>
-          <div class="field"><label>Telefon raqam</label><input id="rPhone" placeholder="+998 90 123 45 67" /></div>
-          <div class="field"><label>Ism</label><input id="rFullName" placeholder="Ismingiz" /></div>
-          <div class="field"><label>Izoh</label><textarea id="rNote" placeholder="Masalan: deraza oldi, bolalar stuli kerak..."></textarea></div>
-          <div id="reservationPaymentBox" class="paybox"></div>
-          <div class="field"><label>To‘lov screenshoti</label><input class="file" id="rScreenshot" type="file" accept="image/*" /></div>
-          <button class="primary" style="width:100%" onclick="submitReservation()">Band qilishni yuborish</button>
-        </div>
-      </section>
+    <section id="reserve" class="section"><div class="panel"><h2>🪑 Joy band qilish</h2><p class="muted">Vaqt oralig‘ini tanlang. Agar depozit bor bo‘lsa, screenshot yuklanadi.</p><div class="paybox" id="reservationPaymentBox"></div><div class="row"><div class="field"><label>Sana</label><input id="rDate" type="date"></div><div class="field"><label>Mehmonlar</label><input id="rGuests" type="number" min="1" value="2"></div></div><div class="row"><div class="field"><label>Boshlanish</label><input id="rStart" type="time" value="18:00"></div><div class="field"><label>Tugash</label><input id="rEnd" type="time" value="20:00"></div></div><div class="field"><label>Joy turi</label><select id="rArea"></select></div><div class="row"><div class="field"><label>Ism</label><input id="rFullName"></div><div class="field"><label>Telefon</label><input id="rPhone" placeholder="+998 ..." inputmode="tel"></div></div><div class="field"><label>Izoh</label><textarea id="rNote" placeholder="Bolalar bilan, deraza yonidan..."></textarea></div><div class="field"><label>Depozit screenshot</label><input class="file" id="rScreenshot" type="file" accept="image/*"></div><button class="btn" style="width:100%" onclick="submitReservation()">Band qilishni yuborish</button></div></section>
 
-      <section id="orders" class="section">
-        <div class="panel">
-          <h2>📦 Statuslar</h2>
-          <p class="muted">Buyurtmalar va band qilish holati shu yerda ko‘rinadi.</p>
-          <button class="ghost" onclick="loadMyStatuses()">Yangilash</button>
-          <h3 style="margin-top:16px">Buyurtmalar</h3><div id="myOrders"></div>
-          <h3 style="margin-top:16px">Band qilingan joylar</h3><div id="myReservations"></div>
-        </div>
-      </section>
+    <section id="orders" class="section"><div class="panel"><h2>📦 Statuslar</h2><p class="muted">Buyurtma va stol band qilish holatlari shu yerda yangilanadi.</p><button class="ghost" onclick="loadMyStatuses()">Yangilash</button><h3>Buyurtmalar</h3><div id="myOrders"></div><h3>Joy band qilish</h3><div id="myReservations"></div></div></section>
 
-      <section id="profile" class="section">
-        <div class="panel">
-          <h2>👤 Profil va restoran</h2>
-          <div id="profileInfo" class="muted"></div>
-          <div class="line"></div>
-          <p class="muted"><b>Qanday ishlaydi?</b><br>1) Menyudan tanlang yoki joy band qiling. 2) Karta orqali to‘lov qiling. 3) Screenshot yuklang. 4) Admin tasdiqlaydi, status yangilanadi.</p>
-          <button class="ghost" style="width:100%" onclick="location.href='/admin'">Admin panel</button>
-        </div>
-      </section>
-    </main>
-  </div>
+    <section id="profile" class="section"><div class="panel"><h2>👤 Profil va restoran</h2><div class="info-card"><div id="profileInfo" class="muted"></div><div>🍽</div></div><div class="line"></div><button class="ghost" onclick="copyCard()">💳 Karta raqamni nusxalash</button><button class="ghost" onclick="load()" style="margin-left:6px">🔄 Yangilash</button></div></section>
+  </main>
+</div>
 
-  <nav class="bottom-nav">
-    <button class="navbtn active" data-target="menu" onclick="showSection('menu')"><span class="ico">🍽</span><span>Menyu</span></button>
-    <button class="navbtn" data-target="cart" onclick="showSection('cart')"><span class="navwrap"><span class="ico">🛒</span><span class="cart-badge" id="cartBadge">0</span></span><span>Savat</span></button>
-    <button class="navbtn" data-target="reserve" onclick="showSection('reserve')"><span class="ico">🪑</span><span>Band</span></button>
-    <button class="navbtn" data-target="orders" onclick="showSection('orders');loadMyStatuses()"><span class="ico">📦</span><span>Status</span></button>
-    <button class="navbtn" data-target="profile" onclick="showSection('profile')"><span class="ico">👤</span><span>Profil</span></button>
-  </nav>
-  <div class="toast" id="toast"></div>
+<nav class="bottom-nav">
+  <button class="navbtn active" data-section="menu" onclick="showSection('menu')"><span class="ico">🍽</span><span>Menyu</span></button>
+  <button class="navbtn" data-section="cart" onclick="showSection('cart')"><span class="ico">🛒</span><span>Savat</span><span class="cart-badge" id="cartBadge">0</span></button>
+  <button class="navbtn" data-section="reserve" onclick="showSection('reserve')"><span class="ico">🪑</span><span>Bron</span></button>
+  <button class="navbtn" data-section="orders" onclick="showSection('orders');loadMyStatuses()"><span class="ico">📦</span><span>Status</span></button>
+  <button class="navbtn" data-section="profile" onclick="showSection('profile')"><span class="ico">👤</span><span>Profil</span></button>
+</nav>
+<div class="toast" id="toast"></div>
 
-  <script>
-    const tg = window.Telegram?.WebApp;
-    if (tg) { tg.ready(); tg.expand(); tg.setHeaderColor('#d71313'); tg.setBackgroundColor('#ffffff'); }
-    const tgUser = tg?.initDataUnsafe?.user || null;
-    const demoUserId = localStorage.getItem('kd_demo_user') || (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()));
-    localStorage.setItem('kd_demo_user', demoUserId);
-
-    let state = { settings:null, products:[], services:[], categories:[], activeCategory:'Barchasi', cart:JSON.parse(localStorage.getItem('kd_cart') || '[]') };
-    const money = (n) => `${Number(n || 0).toLocaleString('uz-UZ')} ${state.settings?.currency || 'UZS'}`;
-    const $ = (id) => document.getElementById(id);
-
-    function toast(msg){ const el=$('toast'); el.textContent=msg; el.classList.add('show'); setTimeout(()=>el.classList.remove('show'),2600); }
-    function apiHeaders(json=true){ const h={'X-Telegram-Init-Data':tg?.initData || '', 'X-Demo-User-Id':demoUserId}; if(json) h['Content-Type']='application/json'; return h; }
-    async function api(path, options={}){ const res = await fetch(path, { ...options, headers:{ ...apiHeaders(options.json !== false), ...(options.headers||{}) }}); const data = await res.json().catch(()=>({success:false,message:'JSON javob kelmadi'})); if(!res.ok || data.success===false) throw new Error(data.message || 'Xatolik yuz berdi'); return data; }
-    function saveCart(){ localStorage.setItem('kd_cart', JSON.stringify(state.cart)); updateCartBadge(); }
-    function updateCartBadge(){ const count=state.cart.reduce((s,i)=>s+i.qty,0); $('cartBadge').style.display=count?'grid':'none'; $('cartBadge').textContent=count; }
-
-    function showSection(id){ document.querySelectorAll('.section').forEach(s=>s.classList.toggle('active',s.id===id)); document.querySelectorAll('.navbtn').forEach(b=>b.classList.toggle('active',b.dataset.target===id)); if(id==='cart') renderCart(); window.scrollTo({top:0,behavior:'smooth'}); }
-
-    async function load(){
-      try{
-        const data = await api('/api/bootstrap');
-        state.settings = data.settings; state.products = data.products; state.services = data.services; state.categories = ['Barchasi', ...data.categories];
-        renderBrand(); renderCategories(); renderProducts(); renderPaymentBoxes(); renderDeliveryOptions(); renderReservationAreas(); renderProfile(); setMinDate(); updateCartBadge();
-      }catch(err){ toast(err.message); }
-    }
-
-    function renderBrand(){
-      $('brandName').textContent = state.settings.brandName;
-      $('brandSubtitle').textContent = state.settings.brandSubtitle;
-      $('openHours').textContent = state.settings.openingHours || 'Ochiq';
-      if(state.settings.logoUrl){ $('brandLogo').innerHTML = `<img src="${state.settings.logoUrl}" alt="Kardeşler Döner logo">`; }
-      document.title = `${state.settings.brandName} — Mini App`;
-    }
-    function renderPaymentBoxes(){
-      const s=state.settings;
-      const html = `<small>${s.paymentCardTitle || 'Karta to‘lovi'}</small><strong>${s.paymentCardNumber || ''}</strong><div>${s.paymentCardHolder || ''} · ${s.paymentCardBank || ''}</div><small>${s.paymentInstructions || ''}</small><br><button class="copy" onclick="copyCard()">Karta raqamni nusxalash</button>`;
-      $('paymentBox').innerHTML = html;
-      $('reservationPaymentBox').innerHTML = html + `<div style="margin-top:10px;font-weight:900">Depozit: ${money(s.reservationDeposit || 0)}</div>`;
-    }
-    async function copyCard(){ await navigator.clipboard?.writeText(state.settings.paymentCardNumber || ''); toast('Karta raqam nusxalandi'); }
-
-    function renderCategories(){ $('categoryChips').innerHTML = state.categories.map(c=>`<button class="chip ${state.activeCategory===c?'active':''}" onclick="state.activeCategory='${c.replace(/'/g,"\\'")}';renderCategories();renderProducts();">${c}</button>`).join(''); }
-    function renderProducts(){
-      const q = $('searchInput').value.trim().toLowerCase();
-      let products = state.products.filter(p => state.activeCategory==='Barchasi' || p.category===state.activeCategory);
-      if(q) products = products.filter(p => `${p.name} ${p.category} ${p.description}`.toLowerCase().includes(q));
-      $('productGrid').innerHTML = products.length ? products.map(p=>`
-        <article class="card food">
-          <div class="food-img">${p.featured?'<div class="badge">TOP</div>':''}${p.imageUrl?`<img src="${p.imageUrl}" alt="${escapeHtml(p.name)}">`:`<span>${p.emoji || '🥙'}</span>`}</div>
-          <div class="food-body"><h3>${escapeHtml(p.name)} ${p.spicy?'🌶':''}</h3><p>${escapeHtml(p.description || '')}</p><div class="price-row"><div><div class="price">${money(p.price)}</div>${p.oldPrice?`<div class="old">${money(p.oldPrice)}</div>`:''}</div><button class="add" onclick="addToCart('${p._id}')">+</button></div></div>
-        </article>`).join('') : '<div class="empty" style="grid-column:1/-1">Mahsulot topilmadi.</div>';
-    }
-    function escapeHtml(str){ return String(str).replace(/[&<>'"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[ch])); }
-    function addToCart(id){ const p=state.products.find(x=>x._id===id); if(!p) return; const found=state.cart.find(i=>i.productId===id); if(found) found.qty++; else state.cart.push({productId:id,qty:1}); saveCart(); toast(`${p.name} savatga qo‘shildi`); }
-    function changeQty(id,delta){ const item=state.cart.find(i=>i.productId===id); if(!item) return; item.qty+=delta; if(item.qty<=0) state.cart=state.cart.filter(i=>i.productId!==id); saveCart(); renderCart(); }
-    function cartSubtotal(){ return state.cart.reduce((sum,i)=>{ const p=state.products.find(x=>x._id===i.productId); return sum + (p ? p.price*i.qty : 0); },0); }
-    function selectedDeliveryFee(){ if($('orderType').value==='PICKUP') return 0; const service=state.services.find(s=>s._id===$('deliveryService').value); return service?.price || 0; }
-    function renderDeliveryOptions(){ $('deliveryService').innerHTML = state.services.map(s=>`<option value="${s._id}">${s.title} · ${money(s.price)} · ${s.eta}</option>`).join(''); }
-    function renderCart(){
-      const type = $('orderType').value;
-      $('deliveryField').style.display = type==='DELIVERY'?'flex':'none'; $('addressField').style.display = type==='DELIVERY'?'flex':'none';
-      $('cartList').innerHTML = state.cart.length ? state.cart.map(i=>{ const p=state.products.find(x=>x._id===i.productId); if(!p) return ''; return `<div class="cart-item"><div><b>${escapeHtml(p.name)}</b><div class="muted">${money(p.price)} × ${i.qty} = ${money(p.price*i.qty)}</div></div><div class="qty"><button onclick="changeQty('${i.productId}',-1)">−</button><b>${i.qty}</b><button onclick="changeQty('${i.productId}',1)">+</button></div></div>`; }).join('') : '<div class="empty">Savat hozircha bo‘sh.</div>';
-      $('cartTotal').textContent = money(cartSubtotal() + selectedDeliveryFee());
-    }
-    function renderReservationAreas(){ const areas=(state.settings.tableAreas || []).filter(a=>a.active!==false); $('rArea').innerHTML = areas.map(a=>`<option value="${escapeHtml(a.name)}">${escapeHtml(a.name)} · ${escapeHtml(a.description||'')}</option>`).join(''); }
-    function setMinDate(){ const today = new Date().toISOString().slice(0,10); $('rDate').min=today; $('rDate').value=today; }
-    function renderProfile(){ const s=state.settings; const userName = tgUser ? `${tgUser.first_name || ''} ${tgUser.last_name || ''}`.trim() : 'Demo foydalanuvchi'; $('profileInfo').innerHTML = `<b>${escapeHtml(userName)}</b><br>📍 ${escapeHtml(s.restaurantAddress || '')}<br>📞 ${escapeHtml(s.restaurantPhone || '')}<br>📸 ${escapeHtml(s.instagram || '')}<br>⏰ ${escapeHtml(s.openingHours || '')}`; $('orderFullName').value = userName === 'Demo foydalanuvchi' ? '' : userName; $('rFullName').value = $('orderFullName').value; }
-
-    async function submitOrder(){
-      try{
-        if(!state.cart.length) throw new Error('Savat bo‘sh.');
-        if(!$('orderPhone').value.trim()) throw new Error('Telefon raqam kiriting.');
-        if($('orderType').value==='DELIVERY' && !$('orderAddress').value.trim()) throw new Error('Yetkazish manzilini kiriting.');
-        if(!$('orderScreenshot').files[0]) throw new Error('To‘lov screenshotini yuklang.');
-        const fd = new FormData();
-        fd.append('items', JSON.stringify(state.cart)); fd.append('type', $('orderType').value); fd.append('deliveryServiceId', $('deliveryService').value);
-        fd.append('phone', $('orderPhone').value); fd.append('fullName', $('orderFullName').value); fd.append('address', $('orderAddress').value); fd.append('note', $('orderNote').value); fd.append('demoUserId', demoUserId); fd.append('screenshot', $('orderScreenshot').files[0]);
-        const res = await fetch('/api/orders', { method:'POST', headers:{'X-Telegram-Init-Data':tg?.initData || '', 'X-Demo-User-Id':demoUserId}, body:fd });
-        const data = await res.json(); if(!res.ok || !data.success) throw new Error(data.message || 'Buyurtma yuborilmadi');
-        state.cart=[]; saveCart(); renderCart(); $('orderScreenshot').value=''; toast('Buyurtma yuborildi. Admin tasdiqlaydi ✅'); showSection('orders'); loadMyStatuses();
-      }catch(err){ toast(err.message); }
-    }
-    async function submitReservation(){
-      try{
-        if(!$('rPhone').value.trim()) throw new Error('Telefon raqam kiriting.');
-        if(!$('rDate').value || !$('rStart').value || !$('rEnd').value) throw new Error('Sana va vaqtni kiriting.');
-        if((state.settings.reservationDeposit || 0) > 0 && !$('rScreenshot').files[0]) throw new Error('Depozit screenshotini yuklang.');
-        const fd = new FormData();
-        ['date','startTime','endTime','guests','tableArea','phone','fullName','note'].forEach(()=>{});
-        fd.append('date',$('rDate').value); fd.append('startTime',$('rStart').value); fd.append('endTime',$('rEnd').value); fd.append('guests',$('rGuests').value); fd.append('tableArea',$('rArea').value); fd.append('phone',$('rPhone').value); fd.append('fullName',$('rFullName').value); fd.append('note',$('rNote').value); fd.append('demoUserId',demoUserId);
-        if($('rScreenshot').files[0]) fd.append('screenshot',$('rScreenshot').files[0]);
-        const res = await fetch('/api/reservations', { method:'POST', headers:{'X-Telegram-Init-Data':tg?.initData || '', 'X-Demo-User-Id':demoUserId}, body:fd });
-        const data = await res.json(); if(!res.ok || !data.success) throw new Error(data.message || 'Band qilish yuborilmadi');
-        $('rScreenshot').value=''; toast('Band qilish yuborildi. Admin tasdiqlaydi ✅'); showSection('orders'); loadMyStatuses();
-      }catch(err){ toast(err.message); }
-    }
-    function statusClass(v){ return ['APPROVED','CONFIRMED','DONE','READY','COMPLETED'].includes(v)?'ok':['REJECTED','CANCELLED'].includes(v)?'bad':''; }
-    async function loadMyStatuses(){
-      try{
-        const [orders,reservations] = await Promise.all([api('/api/my/orders'), api('/api/my/reservations')]);
-        $('myOrders').innerHTML = orders.orders.length ? orders.orders.map(o=>`<div class="status-card"><div><b>#${o.orderNo}</b><div class="muted">${new Date(o.createdAt).toLocaleString('uz-UZ')} · ${money(o.total)}</div><span class="status ${statusClass(o.paymentStatus)}">To‘lov: ${o.paymentStatus}</span> <span class="status ${statusClass(o.orderStatus)}">${o.orderStatus}</span></div><div>🥙</div></div>`).join('') : '<div class="empty">Buyurtma yo‘q.</div>';
-        $('myReservations').innerHTML = reservations.reservations.length ? reservations.reservations.map(r=>`<div class="status-card"><div><b>#${r.reservationNo}</b><div class="muted">${r.date} · ${r.startTime}-${r.endTime} · ${r.tableArea}</div><span class="status ${statusClass(r.paymentStatus)}">To‘lov: ${r.paymentStatus}</span> <span class="status ${statusClass(r.status)}">${r.status}</span></div><div>🪑</div></div>`).join('') : '<div class="empty">Band qilingan joy yo‘q.</div>';
-      }catch(err){ $('myOrders').innerHTML = `<div class="empty">${escapeHtml(err.message)}</div>`; }
-    }
-    load();
-  </script>
+<script>
+  const tg = window.Telegram?.WebApp; tg?.ready?.(); tg?.expand?.();
+  const tgUser = tg?.initDataUnsafe?.user || null;
+  const demoUserId = localStorage.getItem('kd_demo_id') || `demo-${Math.random().toString(16).slice(2)}`; localStorage.setItem('kd_demo_id', demoUserId);
+  const $ = id => document.getElementById(id);
+  const state = { settings:{currency:'UZS'}, products:[], services:[], categories:['Barchasi'], activeCategory:'Barchasi', cart: JSON.parse(localStorage.getItem('kd_cart') || '[]') };
+  function applyTheme(){ const saved=localStorage.getItem('kd_theme') || (tg?.colorScheme==='dark'?'dark':'light'); document.documentElement.dataset.theme=saved; document.querySelector('meta[name="theme-color"]').content=saved==='dark'?'#0f0b0b':'#d71313'; }
+  function toggleTheme(){ const cur=document.documentElement.dataset.theme==='dark'?'light':'dark'; localStorage.setItem('kd_theme',cur); applyTheme(); }
+  function toast(msg){ const el=$('toast'); el.textContent=msg; el.classList.add('show'); clearTimeout(toast.t); toast.t=setTimeout(()=>el.classList.remove('show'),2600); }
+  function esc(s){ return String(s??'').replace(/[&<>'"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[ch])); }
+  function money(n){ return `${Number(n||0).toLocaleString('uz-UZ')} ${state.settings.currency || 'UZS'}`; }
+  async function api(url,opt={}){ opt.headers={...(opt.headers||{}),'X-Telegram-Init-Data':tg?.initData||'','X-Demo-User-Id':demoUserId}; const res=await fetch(url,opt); const data=await res.json().catch(()=>({success:false,message:'JSON javob kelmadi'})); if(!res.ok||data.success===false) throw new Error(data.message||'Server xatosi'); return data; }
+  function showSection(id){ document.querySelectorAll('.section').forEach(s=>s.classList.toggle('active',s.id===id)); document.querySelectorAll('.navbtn').forEach(b=>b.classList.toggle('active',b.dataset.section===id)); if(id==='cart')renderCart(); window.scrollTo({top:0,behavior:'smooth'}); }
+  function saveCart(){ localStorage.setItem('kd_cart',JSON.stringify(state.cart)); updateCartBadge(); renderCart(); }
+  function updateCartBadge(){ const n=state.cart.reduce((s,i)=>s+i.qty,0); $('cartBadge').style.display=n?'grid':'none'; $('cartBadge').textContent=n; }
+  async function load(){ try{ const data=await api('/api/bootstrap'); state.settings=data.settings||{}; state.products=data.products||[]; state.services=data.services||[]; state.categories=['Barchasi',...(data.categories||[])]; renderBrand(); renderPaymentBoxes(); renderCategories(); renderProducts(); renderDeliveryOptions(); renderReservationAreas(); renderProfile(); setMinDate(); updateCartBadge(); renderCart(); }catch(e){ toast(e.message); } }
+  function renderBrand(){ const s=state.settings; $('brandName').textContent=s.brandName||'Kardeşler Döner'; $('brandSubtitle').textContent=s.brandSubtitle||'Turkcha doner va joy band qilish'; $('openHours').textContent=s.openingHours||'Ochiq'; if(s.logoUrl)$('brandLogo').innerHTML=`<img src="${s.logoUrl}" alt="logo">`; document.title=`${s.brandName||'Kardeşler Döner'} — Mini App`; }
+  function renderPaymentBoxes(){ const s=state.settings; const html=`<small>${esc(s.paymentCardTitle||'Karta to‘lovi')}</small><strong>${esc(s.paymentCardNumber||'')}</strong><div>${esc(s.paymentCardHolder||'')} · ${esc(s.paymentCardBank||'')}</div><small>${esc(s.paymentInstructions||'')}</small><br><button class="copy" onclick="copyCard()">Nusxalash</button>`; $('paymentBox').innerHTML=html; $('reservationPaymentBox').innerHTML=html+`<div style="margin-top:9px;font-weight:1000">Depozit: ${money(s.reservationDeposit||0)}</div>`; }
+  async function copyCard(){ try{ await navigator.clipboard?.writeText(state.settings.paymentCardNumber||''); toast('Karta raqam nusxalandi ✅'); }catch(_){ toast('Nusxalash imkoni bo‘lmadi'); } }
+  function renderCategories(){ $('categoryChips').innerHTML=state.categories.map(c=>`<button class="chip ${state.activeCategory===c?'active':''}" onclick="state.activeCategory='${String(c).replace(/'/g,"\\'")}';renderCategories();renderProducts();">${esc(c)}</button>`).join(''); }
+  function renderProducts(){ const q=$('searchInput').value.trim().toLowerCase(); let arr=state.products.filter(p=>state.activeCategory==='Barchasi'||p.category===state.activeCategory); if(q)arr=arr.filter(p=>`${p.name} ${p.category} ${p.description}`.toLowerCase().includes(q)); $('productGrid').innerHTML=arr.length?arr.map(p=>`<article class="food"><div class="food-img">${p.featured?'<div class="badge">TOP</div>':''}${p.imageUrl?`<img src="${p.imageUrl}" alt="${esc(p.name)}">`:`<span>${esc(p.emoji||'🥙')}</span>`}</div><div class="food-body"><h3>${esc(p.name)} ${p.spicy?'🌶':''}</h3><p>${esc(p.description||'')}</p><div class="price-row"><div><div class="price">${money(p.price)}</div>${p.oldPrice?`<div class="old">${money(p.oldPrice)}</div>`:''}</div><button class="add" onclick="addToCart('${p._id}')">+</button></div></div></article>`).join(''):'<div class="empty" style="grid-column:1/-1">Mahsulot topilmadi.</div>'; }
+  function addToCart(id){ const p=state.products.find(x=>x._id===id); if(!p)return; const it=state.cart.find(x=>x.productId===id); if(it)it.qty++; else state.cart.push({productId:id,qty:1}); saveCart(); toast(`${p.name} savatga qo‘shildi`); }
+  function changeQty(id,d){ const it=state.cart.find(x=>x.productId===id); if(!it)return; it.qty+=d; if(it.qty<=0)state.cart=state.cart.filter(x=>x.productId!==id); saveCart(); }
+  function cartSubtotal(){ return state.cart.reduce((s,i)=>{ const p=state.products.find(x=>x._id===i.productId); return s+(p?p.price*i.qty:0); },0); }
+  function selectedDeliveryFee(){ if($('orderType').value==='PICKUP')return 0; const s=state.services.find(x=>x._id===$('deliveryService').value); return s?.price||0; }
+  function renderDeliveryOptions(){ $('deliveryService').innerHTML=state.services.map(s=>`<option value="${s._id}">${esc(s.title)} · ${money(s.price)} · ${esc(s.eta)}</option>`).join(''); }
+  function renderCart(){ const type=$('orderType').value; $('deliveryField').style.display=type==='DELIVERY'?'flex':'none'; $('addressField').style.display=type==='DELIVERY'?'flex':'none'; $('cartList').innerHTML=state.cart.length?state.cart.map(i=>{ const p=state.products.find(x=>x._id===i.productId); if(!p)return''; return `<div class="cart-item"><div><b>${esc(p.name)}</b><div class="muted">${money(p.price)} × ${i.qty} = ${money(p.price*i.qty)}</div></div><div class="qty"><button onclick="changeQty('${i.productId}',-1)">−</button><b>${i.qty}</b><button onclick="changeQty('${i.productId}',1)">+</button></div></div>`; }).join(''):'<div class="empty">Savat hozircha bo‘sh.</div>'; $('cartTotal').textContent=money(cartSubtotal()+selectedDeliveryFee()); }
+  function renderReservationAreas(){ const areas=(state.settings.tableAreas||[]).filter(a=>a.active!==false); $('rArea').innerHTML=areas.map(a=>`<option value="${esc(a.name)}">${esc(a.name)} · ${esc(a.description||'')}</option>`).join(''); }
+  function setMinDate(){ const t=new Date().toISOString().slice(0,10); $('rDate').min=t; if(!$('rDate').value)$('rDate').value=t; }
+  function renderProfile(){ const s=state.settings; const name=tgUser?[tgUser.first_name,tgUser.last_name].filter(Boolean).join(' '):'Demo foydalanuvchi'; $('profileInfo').innerHTML=`<b>${esc(name)}</b><br>📍 ${esc(s.restaurantAddress||'')}<br>📞 ${esc(s.restaurantPhone||'')}<br>📸 ${esc(s.instagram||'')}<br>⏰ ${esc(s.openingHours||'')}`; $('orderFullName').value=name==='Demo foydalanuvchi'?'':name; $('rFullName').value=$('orderFullName').value; }
+  async function submitOrder(){ try{ if(!state.cart.length)throw new Error('Savat bo‘sh.'); if(!$('orderPhone').value.trim())throw new Error('Telefon raqam kiriting.'); if($('orderType').value==='DELIVERY'&&!$('orderAddress').value.trim())throw new Error('Yetkazish manzilini kiriting.'); if(!$('orderScreenshot').files[0])throw new Error('To‘lov screenshotini yuklang.'); const fd=new FormData(); fd.append('items',JSON.stringify(state.cart)); fd.append('type',$('orderType').value); fd.append('deliveryServiceId',$('deliveryService').value); fd.append('phone',$('orderPhone').value); fd.append('fullName',$('orderFullName').value); fd.append('address',$('orderAddress').value); fd.append('note',$('orderNote').value); fd.append('demoUserId',demoUserId); fd.append('screenshot',$('orderScreenshot').files[0]); const data=await api('/api/orders',{method:'POST',body:fd}); state.cart=[]; saveCart(); $('orderScreenshot').value=''; toast(`Buyurtma yuborildi: #${data.order.orderNo} ✅`); showSection('orders'); loadMyStatuses(); }catch(e){toast(e.message)} }
+  async function submitReservation(){ try{ if(!$('rPhone').value.trim())throw new Error('Telefon raqam kiriting.'); if(!$('rDate').value||!$('rStart').value||!$('rEnd').value)throw new Error('Sana va vaqtni kiriting.'); if((state.settings.reservationDeposit||0)>0&&!$('rScreenshot').files[0])throw new Error('Depozit screenshotini yuklang.'); const fd=new FormData(); fd.append('date',$('rDate').value); fd.append('startTime',$('rStart').value); fd.append('endTime',$('rEnd').value); fd.append('guests',$('rGuests').value); fd.append('tableArea',$('rArea').value); fd.append('phone',$('rPhone').value); fd.append('fullName',$('rFullName').value); fd.append('note',$('rNote').value); fd.append('demoUserId',demoUserId); if($('rScreenshot').files[0])fd.append('screenshot',$('rScreenshot').files[0]); const data=await api('/api/reservations',{method:'POST',body:fd}); $('rScreenshot').value=''; toast(`Bron yuborildi: #${data.reservation.reservationNo} ✅`); showSection('orders'); loadMyStatuses(); }catch(e){toast(e.message)} }
+  function statusClass(v){ return ['APPROVED','CONFIRMED','DONE','READY','COMPLETED'].includes(v)?'ok':['REJECTED','CANCELLED'].includes(v)?'bad':''; }
+  async function loadMyStatuses(){ try{ const [o,r]=await Promise.all([api('/api/my/orders'),api('/api/my/reservations')]); $('myOrders').innerHTML=o.orders.length?o.orders.map(x=>`<div class="status-card"><div><b>#${esc(x.orderNo)}</b><div class="muted">${new Date(x.createdAt).toLocaleString('uz-UZ')} · ${money(x.total)}</div><span class="status ${statusClass(x.paymentStatus)}">To‘lov: ${x.paymentStatus}</span> <span class="status ${statusClass(x.orderStatus)}">${x.orderStatus}</span></div><div>🥙</div></div>`).join(''):'<div class="empty">Buyurtma yo‘q.</div>'; $('myReservations').innerHTML=r.reservations.length?r.reservations.map(x=>`<div class="status-card"><div><b>#${esc(x.reservationNo)}</b><div class="muted">${x.date} · ${x.startTime}-${x.endTime} · ${esc(x.tableArea)}</div><span class="status ${statusClass(x.paymentStatus)}">To‘lov: ${x.paymentStatus}</span> <span class="status ${statusClass(x.status)}">${x.status}</span></div><div>🪑</div></div>`).join(''):'<div class="empty">Band qilingan joy yo‘q.</div>'; }catch(e){ $('myOrders').innerHTML=`<div class="empty">${esc(e.message)}</div>`; $('myReservations').innerHTML=''; } }
+  applyTheme(); load();
+</script>
 </body>
 </html>
