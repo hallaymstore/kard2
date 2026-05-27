@@ -43,3 +43,14 @@ Ushbu versiyada restoran mini app quyidagi darajada kuchaytirildi:
 - Telegram Mini App uchun `PUBLIC_URL` va `WEBAPP_URL` haqiqiy HTTPS bo‘lishi kerak.
 - Haqiqiy avtomatik to‘lov uchun Click/Payme merchant API integratsiyasi kerak. Bu versiyada foydalanuvchini to‘lov ilovasiga olib boruvchi “avtoto‘lovga yaqin” linkli variant qo‘shildi.
 - `.env` faylida bot token va Cloudinary kalitlari bor. Zip faylni ommaga tarqatmang.
+
+## GPS aniqligi bo‘yicha tuzatish
+
+Ushbu kichik patchda `Joriy lokatsiyam` funksiyasi kuchaytirildi:
+
+- `maximumAge: 0` qilindi, ya’ni eski/cached koordinata ishlatilmaydi.
+- GPS bir necha marta o‘lchanadi va eng yaxshi aniqlikdagi natija tanlanadi.
+- Aniqlik past bo‘lsa mijozga ogohlantirish chiqadi.
+- Qidiruv maydoni qo‘shildi: masalan, `Mug‘lon Kasbi`, `Kasbi Qashqadaryo` deb qidirib pin qo‘yish mumkin.
+- Live location faqat yetarlicha aniq GPS kelganda adminga yuboriladi. Juda taxminiy koordinata admin panelga noto‘g‘ri nuqta sifatida yuborilmaydi.
+- Admin panelda lokatsiya manbasi va GPS aniqligi ko‘rinadi.
