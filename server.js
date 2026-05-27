@@ -266,6 +266,14 @@ const settingsSchema = new mongoose.Schema(
     currency: { type: String, default: 'UZS' },
     restaurantPhone: { type: String, default: '+998 90 000 00 00' },
     restaurantAddress: { type: String, default: 'Toshkent, O‘zbekiston' },
+    restaurantLat: { type: Number, default: 41.311081 },
+    restaurantLng: { type: Number, default: 69.240562 },
+    deliveryAutoPricingEnabled: { type: Boolean, default: true },
+    deliveryBaseFee: { type: Number, default: 12000 },
+    deliveryBaseKm: { type: Number, default: 3 },
+    deliveryPricePerKm: { type: Number, default: 5000 },
+    deliveryMaxKm: { type: Number, default: 25 },
+    deliveryOutOfZoneEnabled: { type: Boolean, default: true },
     instagram: { type: String, default: '@kardeshlerdoner' },
     openingHours: { type: String, default: 'Har kuni 10:00–23:00' },
     paymentCardTitle: { type: String, default: 'Kardeşler Döner karta to‘lovi' },
@@ -276,6 +284,11 @@ const settingsSchema = new mongoose.Schema(
       type: String,
       default: 'Kartaga to‘lov qiling, chek rasmini yuboring — operatorlarimiz tasdiqlagach buyurtmangiz holati yangilanadi.',
     },
+    paymentClickUrl: { type: String, default: '' },
+    paymentPaymeUrl: { type: String, default: '' },
+    paymentOtherUrl: { type: String, default: '' },
+    cashOnDeliveryEnabled: { type: Boolean, default: true },
+    cashOnPickupEnabled: { type: Boolean, default: true },
     adminTelegramChatId: { type: String, default: '' },
     reservationDeposit: { type: Number, default: 0 },
     reservationMinGuests: { type: Number, default: 1 },
@@ -340,6 +353,19 @@ const orderSchema = new mongoose.Schema(
     phone: { type: String, required: true },
     type: { type: String, enum: ['DELIVERY', 'PICKUP'], default: 'DELIVERY' },
     address: { type: String, default: '' },
+    customerLocation: {
+      lat: Number,
+      lng: Number,
+      accuracy: Number,
+      source: { type: String, default: '' },
+      updatedAt: Date,
+    },
+    restaurantLocationSnapshot: { lat: Number, lng: Number, address: String },
+    distanceKm: { type: Number, default: 0 },
+    movementTrend: { type: String, enum: ['UNKNOWN', 'APPROACHING', 'MOVING_AWAY', 'STABLE'], default: 'UNKNOWN' },
+    movementDeltaKm: { type: Number, default: 0 },
+    lastLocationAt: Date,
+    liveLocationEnabled: { type: Boolean, default: false },
     deliveryServiceId: { type: mongoose.Schema.Types.ObjectId, ref: 'DeliveryService' },
     deliveryServiceTitle: String,
     items: [
@@ -354,6 +380,16 @@ const orderSchema = new mongoose.Schema(
     subtotal: { type: Number, default: 0 },
     deliveryFee: { type: Number, default: 0 },
     total: { type: Number, default: 0 },
+    deliveryPricing: {
+      baseFee: Number,
+      baseKm: Number,
+      pricePerKm: Number,
+      maxKm: Number,
+      mode: { type: String, default: 'STATIC' },
+      zoneStatus: { type: String, default: 'UNKNOWN' },
+    },
+    paymentMethod: { type: String, enum: ['CARD_TRANSFER', 'PAYMENT_LINK', 'CASH_ON_DELIVERY', 'CASH_ON_PICKUP'], default: 'CARD_TRANSFER' },
+    paymentProvider: { type: String, default: '' },
     paymentScreenshotUrl: { type: String, default: '' },
     paymentScreenshotPublicId: { type: String, default: '' },
     paymentStatus: { type: String, enum: ['PENDING', 'APPROVED', 'REJECTED'], default: 'PENDING' },
@@ -414,9 +450,36 @@ function publicProduct(product) {
   };
 }
 
+function applyRuntimeSettingsDefaults(settings) {
+  const defaults = {
+    restaurantLat: 41.311081,
+    restaurantLng: 69.240562,
+    deliveryAutoPricingEnabled: true,
+    deliveryBaseFee: 12000,
+    deliveryBaseKm: 3,
+    deliveryPricePerKm: 5000,
+    deliveryMaxKm: 25,
+    deliveryOutOfZoneEnabled: true,
+    cashOnDeliveryEnabled: true,
+    cashOnPickupEnabled: true,
+    paymentClickUrl: '',
+    paymentPaymeUrl: '',
+    paymentOtherUrl: '',
+  };
+  let changed = false;
+  for (const [key, value] of Object.entries(defaults)) {
+    if (settings[key] === undefined || settings[key] === null) {
+      settings[key] = value;
+      changed = true;
+    }
+  }
+  return changed;
+}
+
 async function getSettingsDoc() {
   let settings = await Settings.findOne();
   if (!settings) settings = await Settings.create({});
+  if (applyRuntimeSettingsDefaults(settings)) await settings.save();
   return settings;
 }
 
@@ -656,6 +719,108 @@ function nextHumanNo(prefix) {
   return `${prefix}-${y}${m}${d}-${rnd}`;
 }
 
+function normalizeCoord(value, min, max) {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < min || n > max) return null;
+  return n;
+}
+
+function parseLocationPayload(body = {}) {
+  const lat = normalizeCoord(body.customerLat ?? body.lat, -90, 90);
+  const lng = normalizeCoord(body.customerLng ?? body.lng, -180, 180);
+  if (lat === null || lng === null) return null;
+  return {
+    lat,
+    lng,
+    accuracy: Math.max(0, normalizeNumber(body.customerAccuracy ?? body.accuracy)),
+    source: String(body.locationSource || body.source || 'client').slice(0, 40),
+    updatedAt: new Date(),
+  };
+}
+
+function getRestaurantLocation(settings) {
+  const lat = normalizeCoord(settings.restaurantLat, -90, 90);
+  const lng = normalizeCoord(settings.restaurantLng, -180, 180);
+  if (lat === null || lng === null) return null;
+  return { lat, lng, address: settings.restaurantAddress || '' };
+}
+
+function roundKm(value) {
+  return Math.round(Number(value || 0) * 100) / 100;
+}
+
+function haversineKm(a, b) {
+  const toRad = (deg) => (Number(deg) * Math.PI) / 180;
+  const R = 6371;
+  const dLat = toRad(b.lat - a.lat);
+  const dLng = toRad(b.lng - a.lng);
+  const lat1 = toRad(a.lat);
+  const lat2 = toRad(b.lat);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+}
+
+function makeMapUrl(lat, lng) {
+  if (!Number.isFinite(Number(lat)) || !Number.isFinite(Number(lng))) return '';
+  return `https://www.google.com/maps?q=${Number(lat)},${Number(lng)}`;
+}
+
+function calculateDeliveryQuote(settings, location, fallbackService = null, type = 'DELIVERY') {
+  if (type === 'PICKUP') {
+    return { deliveryFee: 0, distanceKm: 0, mode: 'PICKUP', zoneStatus: 'PICKUP', title: 'Olib ketish', mapUrl: '' };
+  }
+
+  const autoEnabled = parseBoolean(settings.deliveryAutoPricingEnabled, true);
+  const baseFee = Math.max(0, normalizeNumber(settings.deliveryBaseFee));
+  const baseKm = Math.max(0, normalizeNumber(settings.deliveryBaseKm));
+  const pricePerKm = Math.max(0, normalizeNumber(settings.deliveryPricePerKm));
+  const maxKm = Math.max(0, normalizeNumber(settings.deliveryMaxKm));
+  const restaurantLocation = getRestaurantLocation(settings);
+
+  if (!autoEnabled || !restaurantLocation || !location) {
+    return {
+      deliveryFee: Math.max(0, normalizeNumber(fallbackService?.price || baseFee)),
+      distanceKm: 0,
+      mode: autoEnabled ? 'STATIC_NO_LOCATION' : 'STATIC',
+      zoneStatus: 'UNKNOWN',
+      title: fallbackService?.title || 'Yetkazib berish',
+      baseFee,
+      baseKm,
+      pricePerKm,
+      maxKm,
+      restaurantLocation,
+      mapUrl: location ? makeMapUrl(location.lat, location.lng) : '',
+    };
+  }
+
+  const distanceKm = roundKm(haversineKm(restaurantLocation, location));
+  const extraKm = Math.max(0, Math.ceil(distanceKm - baseKm));
+  const deliveryFee = baseFee + extraKm * pricePerKm;
+  const zoneStatus = maxKm && distanceKm > maxKm ? 'OUT_OF_ZONE' : 'IN_ZONE';
+
+  return {
+    deliveryFee,
+    distanceKm,
+    mode: 'DISTANCE',
+    zoneStatus,
+    title: `Masofa bo‘yicha yetkazish (${distanceKm} km)`,
+    baseFee,
+    baseKm,
+    pricePerKm,
+    maxKm,
+    restaurantLocation,
+    mapUrl: makeMapUrl(location.lat, location.lng),
+  };
+}
+
+function movementTrend(previousKm, currentKm) {
+  if (!previousKm || !currentKm) return { trend: 'UNKNOWN', delta: 0 };
+  const delta = roundKm(currentKm - previousKm);
+  if (delta <= -0.05) return { trend: 'APPROACHING', delta };
+  if (delta >= 0.05) return { trend: 'MOVING_AWAY', delta };
+  return { trend: 'STABLE', delta };
+}
+
 app.get('/api/health', (_req, res) => {
   res.json({ success: true, app: 'Kardeşler Döner', time: new Date().toISOString() });
 });
@@ -668,6 +833,18 @@ app.get('/api/settings', asyncHandler(async (_req, res) => {
 app.get('/api/delivery-services', asyncHandler(async (_req, res) => {
   const services = await DeliveryService.find({ active: true }).sort({ sort: 1, price: 1 });
   res.json({ success: true, services });
+}));
+
+app.post('/api/delivery/quote', asyncHandler(async (req, res) => {
+  const settings = await getSettingsDoc();
+  const type = req.body.type === 'PICKUP' ? 'PICKUP' : 'DELIVERY';
+  const location = parseLocationPayload(req.body);
+  let fallbackService = null;
+  if (req.body.deliveryServiceId && mongoose.Types.ObjectId.isValid(String(req.body.deliveryServiceId))) {
+    fallbackService = await DeliveryService.findOne({ _id: req.body.deliveryServiceId, active: true });
+  }
+  const quote = calculateDeliveryQuote(settings, location, fallbackService, type);
+  res.json({ success: true, quote });
 }));
 
 app.get('/api/products', asyncHandler(async (req, res) => {
@@ -694,9 +871,7 @@ app.post('/api/orders', upload.single('screenshot'), telegramAuth, asyncHandler(
   if (!Array.isArray(itemsPayload) || !itemsPayload.length) {
     return res.status(400).json({ success: false, message: 'Savat bo‘sh.' });
   }
-  if (!req.file) {
-    return res.status(400).json({ success: false, message: 'To‘lov cheki rasmini yuklang.' });
-  }
+
   const phone = String(req.body.phone || '').trim();
   if (phone.length < 7) {
     return res.status(400).json({ success: false, message: 'Telefon raqamni to‘liq kiriting.' });
@@ -724,19 +899,43 @@ app.post('/api/orders', upload.single('screenshot'), telegramAuth, asyncHandler(
   });
 
   const type = req.body.type === 'PICKUP' ? 'PICKUP' : 'DELIVERY';
-  let deliveryFee = 0;
-  let deliveryServiceTitle = 'Olib ketish';
-  let deliveryServiceId = null;
-  if (type === 'DELIVERY') {
-    deliveryServiceId = ensureObjectId(req.body.deliveryServiceId, 'Yetkazib berish xizmati ID');
-    const service = await DeliveryService.findOne({ _id: deliveryServiceId, active: true });
-    if (!service) return res.status(400).json({ success: false, message: 'Yetkazib berish xizmati topilmadi.' });
-    deliveryFee = service.price;
-    deliveryServiceTitle = service.title;
+  const rawPaymentMethod = String(req.body.paymentMethod || '').trim();
+  let paymentMethod = ['CARD_TRANSFER', 'PAYMENT_LINK', 'CASH_ON_DELIVERY', 'CASH_ON_PICKUP'].includes(rawPaymentMethod) ? rawPaymentMethod : 'CARD_TRANSFER';
+  if (type === 'PICKUP' && paymentMethod === 'CASH_ON_DELIVERY') paymentMethod = 'CASH_ON_PICKUP';
+  if (type === 'DELIVERY' && paymentMethod === 'CASH_ON_PICKUP') paymentMethod = 'CASH_ON_DELIVERY';
+
+  if (paymentMethod === 'CASH_ON_DELIVERY' && !parseBoolean(settings.cashOnDeliveryEnabled, true)) {
+    return res.status(400).json({ success: false, message: 'Yetkazib berganda naqd to‘lov hozircha o‘chirilgan.' });
+  }
+  if (paymentMethod === 'CASH_ON_PICKUP' && !parseBoolean(settings.cashOnPickupEnabled, true)) {
+    return res.status(400).json({ success: false, message: 'Olib ketishda naqd to‘lov hozircha o‘chirilgan.' });
+  }
+  if (paymentMethod === 'CARD_TRANSFER' && !req.file) {
+    return res.status(400).json({ success: false, message: 'Karta orqali o‘tkazmada to‘lov cheki rasmini yuklang yoki naqd/ilova orqali to‘lovni tanlang.' });
   }
 
+  let deliveryServiceTitle = type === 'PICKUP' ? 'Olib ketish' : 'Yetkazib berish';
+  let deliveryServiceId = null;
+  let fallbackService = null;
+  if (type === 'DELIVERY' && req.body.deliveryServiceId) {
+    deliveryServiceId = ensureObjectId(req.body.deliveryServiceId, 'Yetkazib berish xizmati ID');
+    fallbackService = await DeliveryService.findOne({ _id: deliveryServiceId, active: true });
+    if (!fallbackService) return res.status(400).json({ success: false, message: 'Yetkazib berish xizmati topilmadi.' });
+  }
+
+  const customerLocation = parseLocationPayload(req.body);
+  const quote = calculateDeliveryQuote(settings, customerLocation, fallbackService, type);
+  if (type === 'DELIVERY' && parseBoolean(settings.deliveryAutoPricingEnabled, true) && getRestaurantLocation(settings) && !customerLocation) {
+    return res.status(400).json({ success: false, message: 'Yetkazib berish uchun xaritadan joylashuvni belgilang yoki “Joriy lokatsiyam” tugmasini bosing.' });
+  }
+  if (type === 'DELIVERY' && quote.zoneStatus === 'OUT_OF_ZONE' && !parseBoolean(settings.deliveryOutOfZoneEnabled, true)) {
+    return res.status(400).json({ success: false, message: `Bu manzil restoran hududidan ${quote.distanceKm} km uzoqda. Hozircha bu hududga yetkazish yoqilmagan.` });
+  }
+  const deliveryFee = quote.deliveryFee;
+  deliveryServiceTitle = quote.title || fallbackService?.title || deliveryServiceTitle;
+
   const subtotal = items.reduce((sum, item) => sum + item.subtotal, 0);
-  const uploaded = await uploadToCloudinary(req.file, 'kardeshler-doner/payments/orders');
+  const uploaded = req.file ? await uploadToCloudinary(req.file, 'kardeshler-doner/payments/orders') : null;
   const order = await Order.create({
     orderNo: nextHumanNo('KD'),
     userTelegramId: String(req.tgUser.id),
@@ -745,23 +944,78 @@ app.post('/api/orders', upload.single('screenshot'), telegramAuth, asyncHandler(
     phone,
     type,
     address: String(req.body.address || '').trim(),
+    customerLocation: customerLocation || undefined,
+    restaurantLocationSnapshot: quote.restaurantLocation || getRestaurantLocation(settings) || undefined,
+    distanceKm: quote.distanceKm || 0,
+    movementTrend: 'UNKNOWN',
+    lastLocationAt: customerLocation ? new Date() : undefined,
+    liveLocationEnabled: parseBoolean(req.body.liveLocationEnabled, false),
     deliveryServiceId,
     deliveryServiceTitle,
     items,
     subtotal,
     deliveryFee,
     total: subtotal + deliveryFee,
-    paymentScreenshotUrl: uploaded.url,
-    paymentScreenshotPublicId: uploaded.publicId,
+    deliveryPricing: {
+      baseFee: quote.baseFee,
+      baseKm: quote.baseKm,
+      pricePerKm: quote.pricePerKm,
+      maxKm: quote.maxKm,
+      mode: quote.mode,
+      zoneStatus: quote.zoneStatus,
+    },
+    paymentMethod,
+    paymentProvider: String(req.body.paymentProvider || '').trim(),
+    paymentScreenshotUrl: uploaded?.url || '',
+    paymentScreenshotPublicId: uploaded?.publicId || '',
     note: String(req.body.note || '').trim(),
   });
 
+  const locationLine = customerLocation ? `\n🗺 Masofa: ${quote.distanceKm} km\n📍 Xarita: ${quote.mapUrl}` : '';
+  const paymentLine = `\n💳 To‘lov turi: ${paymentMethod}${uploaded?.url ? '\n🧾 Chek biriktirilgan' : ''}`;
   await notifyAdmin(
-    `🧾 <b>Yangi buyurtma</b>\n#${order.orderNo}\n👤 ${order.userFullName}\n📞 ${order.phone}\n🚚 ${order.deliveryServiceTitle}\n💰 ${formatMoney(order.total, settings.currency)}\n📌 Holat: ${order.orderStatus} / ${order.paymentStatus}`,
+    `🧾 <b>Yangi buyurtma</b>\n#${order.orderNo}\n👤 ${order.userFullName}\n📞 ${order.phone}\n🚚 ${order.deliveryServiceTitle}\n🚕 Yetkazish: ${formatMoney(order.deliveryFee, settings.currency)}\n💰 Jami: ${formatMoney(order.total, settings.currency)}${paymentLine}${locationLine}\n📌 Holat: ${order.orderStatus} / ${order.paymentStatus}`,
     order.paymentScreenshotUrl
   );
 
   res.status(201).json({ success: true, order });
+}));
+
+app.post('/api/orders/:id/location', telegramAuth, asyncHandler(async (req, res) => {
+  ensureObjectId(req.params.id, 'Buyurtma ID');
+  const order = await Order.findOne({ _id: req.params.id, userTelegramId: String(req.tgUser.id) });
+  if (!order) return res.status(404).json({ success: false, message: 'Buyurtma topilmadi.' });
+  if (order.type !== 'DELIVERY') return res.status(400).json({ success: false, message: 'Faqat yetkazish buyurtmasida lokatsiya yangilanadi.' });
+  if (['DONE', 'CANCELLED'].includes(order.orderStatus)) return res.status(400).json({ success: false, message: 'Yakunlangan buyurtmada lokatsiya yangilanmaydi.' });
+
+  const settings = await getSettingsDoc();
+  const location = parseLocationPayload(req.body);
+  if (!location) return res.status(400).json({ success: false, message: 'Lokatsiya koordinatalari noto‘g‘ri.' });
+
+  const previousKm = order.distanceKm || 0;
+  const quote = calculateDeliveryQuote(settings, location, null, 'DELIVERY');
+  const trend = movementTrend(previousKm, quote.distanceKm);
+  order.customerLocation = location;
+  order.distanceKm = quote.distanceKm || 0;
+  order.movementTrend = trend.trend;
+  order.movementDeltaKm = trend.delta;
+  order.lastLocationAt = new Date();
+  order.liveLocationEnabled = true;
+  if (!order.restaurantLocationSnapshot?.lat && quote.restaurantLocation) order.restaurantLocationSnapshot = quote.restaurantLocation;
+  await order.save();
+
+  res.json({
+    success: true,
+    order: {
+      _id: order._id,
+      orderNo: order.orderNo,
+      distanceKm: order.distanceKm,
+      movementTrend: order.movementTrend,
+      movementDeltaKm: order.movementDeltaKm,
+      mapUrl: makeMapUrl(location.lat, location.lng),
+      lastLocationAt: order.lastLocationAt,
+    },
+  });
 }));
 
 app.get('/api/my/orders', telegramAuth, asyncHandler(async (req, res) => {
@@ -1027,11 +1281,17 @@ app.patch('/api/admin/settings', verifyAdminToken, upload.single('logo'), asyncH
     'paymentCardNumber',
     'paymentCardHolder',
     'paymentInstructions',
+    'paymentClickUrl',
+    'paymentPaymeUrl',
+    'paymentOtherUrl',
     'adminTelegramChatId',
   ];
   for (const field of allowedStrings) if (req.body[field] !== undefined) settings[field] = String(req.body[field]).trim();
-  for (const field of ['reservationDeposit', 'reservationMinGuests', 'reservationMaxGuests']) {
+  for (const field of ['reservationDeposit', 'reservationMinGuests', 'reservationMaxGuests', 'restaurantLat', 'restaurantLng', 'deliveryBaseFee', 'deliveryBaseKm', 'deliveryPricePerKm', 'deliveryMaxKm']) {
     if (req.body[field] !== undefined) settings[field] = normalizeNumber(req.body[field]);
+  }
+  for (const field of ['deliveryAutoPricingEnabled', 'deliveryOutOfZoneEnabled', 'cashOnDeliveryEnabled', 'cashOnPickupEnabled']) {
+    if (req.body[field] !== undefined) settings[field] = parseBoolean(req.body[field], settings[field]);
   }
   if (req.body.tableAreas !== undefined) {
     settings.tableAreas = safeJsonParse(req.body.tableAreas, settings.tableAreas);

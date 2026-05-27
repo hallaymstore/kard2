@@ -1,23 +1,24 @@
 {
-  "name": "kardeshler-doner",
-  "version": "1.0.0",
+  "name": "kardeshler-doner-telegram-mini-app",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Telegram Mini App for restaurant ordering, booking, dynamic delivery pricing, maps and admin tracking.",
   "main": "server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node server.js"
+    "start": "node server.js",
+    "check": "node --check server.js"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "description": "",
+  "engines": {
+    "node": ">=18"
+  },
   "dependencies": {
-    "cloudinary": "^2.10.0",
-    "cors": "^2.8.6",
-    "dotenv": "^17.4.2",
-    "express": "^5.2.1",
-    "express-rate-limit": "^8.5.2",
-    "helmet": "^8.1.0",
-    "mongoose": "^9.6.2",
-    "multer": "^2.1.1"
+    "cloudinary": "^2.5.1",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.5.0",
+    "helmet": "^8.0.0",
+    "mongoose": "^8.9.5",
+    "multer": "^1.4.5-lts.1"
   }
 }
